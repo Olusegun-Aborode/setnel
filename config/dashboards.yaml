@@ -1,0 +1,235 @@
+# ─────────────────────────────────────────────────────────────────────
+#  Datum Labs dashboard monitor — v1 alert config
+#
+#  Every block below encodes one dashboard and the metrics to watch on it.
+#  Thresholds are starting points — tune them in a PR once you have a week
+#  of real data and you see where the noise lives.
+#
+#  Rule semantics (per metric):
+#    percentChange: N   → fire if |Δ%| vs last snapshot (or vs windowHours ago) > N
+#    absoluteMin:   N   → fire if value < N
+#    absoluteMax:   N   → fire if value > N
+#    windowHours:   N   → compare vs snapshot N hours ago instead of last run
+#    critical:      true→ flag as critical in notifications (louder, exit-code 1)
+#
+#  Fill in each dashboard's `baseUrl` with the deployed URL (without trailing /).
+# ─────────────────────────────────────────────────────────────────────
+
+notifications:
+  telegram:
+    enabled: true
+  email:
+    enabled: true
+    digestOnly: true   # email is only used for the 6h digest; TG handles urgent alerts
+
+dashboards:
+  # ───────────── Aave — lending, multi-chain v3/v4 ─────────────
+  - id: aave
+    name: Aave
+    baseUrl: https://aave.datumlabs.xyz   # TODO: confirm live URL
+    healthPath: /api/health
+    enabled: true
+    metrics:
+      - id: total_market_size
+        label: TVL (market size)
+        path: /api/aave/overview
+        extract: totalMarketSize
+        unit: usd
+        alert:
+          percentChange: 15
+          critical: true
+      - id: total_borrows
+        label: Total borrows
+        path: /api/aave/overview
+        extract: totalBorrows
+        unit: usd
+        alert:
+          percentChange: 20
+      - id: total_available
+        label: Available liquidity
+        path: /api/aave/overview
+        extract: totalAvailable
+        unit: usd
+        alert:
+          percentChange: 25
+      - id: protocol_revenue
+        label: Protocol revenue (24h)
+        path: /api/aave/overview
+        extract: protocolRevenueUSD
+        unit: usd
+        alert:
+          percentChange: 50    # revenue is volatile — wider band
+      - id: liquidations_usd_recent
+        label: Liquidations $ (recent page)
+        path: /api/aave/liquidations?pageSize=50
+        extract: aggregations.totalLiquidatedUSD
+        unit: usd
+        alert:
+          percentChange: 100   # doubling in one window is signal, not noise
+          critical: true
+      - id: liquidations_count_recent
+        label: Liquidations count (recent page)
+        path: /api/aave/liquidations?pageSize=50
+        extract: aggregations.totalCount
+        unit: count
+        alert:
+          percentChange: 100
+
+  # ───────────── Centrifuge — RWA pools ─────────────
+  - id: centrifuge
+    name: Centrifuge RWA
+    baseUrl: https://centrifuge.datumlabs.xyz   # TODO: confirm live URL
+    healthPath: /api/health
+    enabled: true
+    metrics:
+      - id: total_tvl
+        label: Total RWA TVL
+        path: /api/overview
+        extract: totals.tvlUsd
+        unit: usd
+        alert:
+          percentChange: 10    # RWA TVL should move slowly; 10% = meaningful
+          critical: true
+      - id: active_pools
+        label: Active pools
+        path: /api/overview
+        extract: totals.activePools
+        unit: count
+        alert:
+          percentChange: 1     # pool count changes are rare → any change is news
+      - id: net_flows_30d
+        label: Net flows (30d)
+        path: /api/overview
+        extract: totals.netFlows30dUsd
+        unit: usd
+        alert:
+          percentChange: 40
+      - id: data_quality_broken
+        label: Broken data-quality tokens
+        path: /api/overview
+        extract: dataQuality.summary.broken
+        unit: count
+        allowMissing: true
+        alert:
+          absoluteMax: 0       # any broken token fires
+          critical: true
+      - id: flow_deposits
+        label: Deposits ($, flow window)
+        path: /api/flow
+        extract: totalDepositsUsd
+        unit: usd
+        alert:
+          percentChange: 50
+      - id: flow_redemptions
+        label: Redemptions ($, flow window)
+        path: /api/flow
+        extract: totalRedemptionsUsd
+        unit: usd
+        alert:
+          percentChange: 50
+          critical: true       # redemption spikes → liquidity stress
+      - id: unique_holders
+        label: Unique holders
+        path: /api/investors
+        extract: totalUniqueAccounts
+        unit: count
+        alert:
+          percentChange: 20
+
+  # ───────────── Navi — Sui lending ─────────────
+  - id: navi
+    name: Navi Lending
+    baseUrl: https://navi.datumlabs.xyz   # TODO: confirm live URL
+    healthPath: /api/health
+    enabled: true
+    metrics:
+      - id: total_supply
+        label: Total supply
+        path: /api/pools
+        extract: totals.totalSupplyUsd
+        unit: usd
+        alert:
+          percentChange: 15
+          critical: true
+      - id: total_borrows
+        label: Total borrows
+        path: /api/pools
+        extract: totals.totalBorrowsUsd
+        unit: usd
+        alert:
+          percentChange: 20
+      - id: tvl
+        label: TVL (available liquidity)
+        path: /api/pools
+        extract: totals.tvl
+        unit: usd
+        alert:
+          percentChange: 15
+      # Per-pool utilization — one rule per major pool. Extract by array index;
+      # pool order is deterministic from the SDK response. If the order changes,
+      # swap the indices or expose a keyed endpoint. Add/remove rows as assets
+      # are listed/delisted.
+      - id: pool_0_utilization
+        label: Pool #0 utilization
+        path: /api/pools
+        extract: pools[0].utilization
+        unit: percent
+        allowMissing: true
+        alert:
+          absoluteMax: 90
+          critical: true
+      - id: pool_1_utilization
+        label: Pool #1 utilization
+        path: /api/pools
+        extract: pools[1].utilization
+        unit: percent
+        allowMissing: true
+        alert:
+          absoluteMax: 90
+          critical: true
+      - id: pool_2_utilization
+        label: Pool #2 utilization
+        path: /api/pools
+        extract: pools[2].utilization
+        unit: percent
+        allowMissing: true
+        alert:
+          absoluteMax: 90
+          critical: true
+      # Liquidation count in recent page — spike = liquidation cascade.
+      - id: liquidations_total
+        label: Total liquidations indexed
+        path: /api/liquidations?limit=1
+        extract: total
+        unit: count
+        alert:
+          percentChange: 10    # any sudden jump in all-time count is a cascade
+
+  # ───────────── defi-tvl — cross-protocol TVL benchmark ─────────────
+  - id: defi_tvl
+    name: DeFi TVL Benchmark
+    baseUrl: https://defi-tvl.datumlabs.xyz   # TODO: confirm live URL
+    healthPath: /api/health
+    enabled: true
+    metrics:
+      - id: total_tvl
+        label: Total DeFi TVL (all protocols)
+        path: /api/tvl
+        extract: totalTvl
+        unit: usd
+        alert:
+          percentChange: 10
+          critical: true
+
+  # ───────────── Colleague's dashboards (fill in when URLs are available) ─────────────
+  - id: colleague_dashboard_1
+    name: Colleague Dashboard 1
+    baseUrl: https://example.datumlabs.xyz   # TODO
+    enabled: false                            # flip to true once configured
+    metrics: []
+
+  - id: colleague_dashboard_2
+    name: Colleague Dashboard 2
+    baseUrl: https://example2.datumlabs.xyz  # TODO
+    enabled: false
+    metrics: []
