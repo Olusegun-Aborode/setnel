@@ -228,15 +228,204 @@ dashboards:
           percentChange: 10
           critical: true
 
-  # ───────────── Colleague's dashboards (fill in when URLs are available) ─────────────
-  - id: colleague_dashboard_1
-    name: Colleague Dashboard 1
-    baseUrl: https://example.datumlabs.xyz   # TODO
-    enabled: false                            # flip to true once configured
+  # ───────────── Liquidator economy — cross-protocol liquidation analytics ─────────────
+  # Tracks liquidation events across Aave v3, Fluid, Morpho Blue, Spark.
+  # No /api/health route — using "/" as a 200-check fallback.
+  - id: liquidator_economy
+    name: Liquidator Economy
+    baseUrl: https://liquidator-economy-dashboard.vercel.app
+    healthPath: /
+    enabled: true
+    metrics:
+      - id: total_events
+        label: Total liquidation events (lifetime)
+        path: /api/overview
+        extract: totals.totalEvents
+        unit: count
+        alert:
+          # Count is monotonic — a +5% jump in 15 min means a *lot* of new
+          # liquidations all at once = liquidation cascade.
+          percentChange: 5
+          critical: true
+      - id: total_volume
+        label: Total liquidated volume (lifetime)
+        path: /api/overview
+        extract: totals.totalVolume
+        unit: usd
+        alert:
+          percentChange: 5
+          critical: true
+      - id: unique_liquidators
+        label: Unique liquidators (lifetime)
+        path: /api/overview
+        extract: totals.uniqueLiquidators
+        unit: count
+        alert:
+          percentChange: 10
+      - id: latest_large_collateral
+        label: Largest recent liquidation (collateral $)
+        path: /api/overview
+        extract: recentLarge[0].collateralAmountUsd
+        unit: usd
+        alert:
+          # When a brand-new whale-tier liquidation lands at the top, this
+          # value changes. Wide threshold — only the truly enormous ones.
+          percentChange: 100
+          critical: true
+
+  # ───────────── Lending intelligence terminal — multi-protocol KPI dashboard ─────────────
+  - id: lending_intel
+    name: Lending Intelligence Terminal
+    baseUrl: https://lending-intelligence-terminal.vercel.app
+    healthPath: /
+    enabled: true
+    metrics:
+      - id: total_tvl
+        label: Total TVL (all protocols)
+        path: /api/overview
+        extract: snapshot.totalTvl
+        unit: usd
+        alert:
+          percentChange: 10
+          critical: true
+      - id: total_borrowed
+        label: Total borrowed
+        path: /api/overview
+        extract: snapshot.totalBorrowed
+        unit: usd
+        alert:
+          percentChange: 15
+      - id: total_supplied
+        label: Total supplied
+        path: /api/overview
+        extract: snapshot.totalSupplied
+        unit: usd
+        alert:
+          percentChange: 15
+      - id: total_fees_24h
+        label: Protocol fees (24h)
+        path: /api/overview
+        extract: snapshot.totalFees24h
+        unit: usd
+        alert:
+          percentChange: 50
+      - id: protocol_count
+        label: Protocols tracked
+        path: /api/overview
+        extract: snapshot.protocolCount
+        unit: count
+        alert:
+          # Any change = listing/delisting event. Worth a heads-up.
+          percentChange: 1
+      - id: stablecoin_debt_share
+        label: Stablecoin debt share
+        path: /api/overview
+        extract: snapshot.stablecoinDebtSharePct
+        unit: percent
+        alert:
+          percentChange: 10
+
+  # ───────────── Spark Lend — per-asset risk monitor ─────────────
+  # Returns a flat array of markets; we monitor utilization and frozen-status
+  # on the major actives. Update indices when assets are added/delisted.
+  # As of writing: [0]=DAI, [2]=USDC, [3]=WETH, [8]=USDT.
+  # USDT is currently at 96% utilization — expect this to fire on first run.
+  - id: sparklend
+    name: Spark Lend
+    baseUrl: https://sparklend-dashboard.vercel.app
+    healthPath: /
+    enabled: true
+    metrics:
+      - id: dai_utilization
+        label: DAI utilization
+        path: /api/markets
+        extract: '[0].utilization'
+        unit: percent
+        allowMissing: true
+        alert:
+          absoluteMax: 90
+          critical: true
+      - id: usdc_utilization
+        label: USDC utilization
+        path: /api/markets
+        extract: '[2].utilization'
+        unit: percent
+        allowMissing: true
+        alert:
+          absoluteMax: 90
+          critical: true
+      - id: weth_utilization
+        label: WETH utilization
+        path: /api/markets
+        extract: '[3].utilization'
+        unit: percent
+        allowMissing: true
+        alert:
+          absoluteMax: 90
+          critical: true
+      - id: usdt_utilization
+        label: USDT utilization
+        path: /api/markets
+        extract: '[8].utilization'
+        unit: percent
+        allowMissing: true
+        alert:
+          absoluteMax: 90
+          critical: true
+      # Frozen status flips boolean → 1 when a market is frozen by governance.
+      - id: dai_frozen
+        label: DAI frozen status
+        path: /api/markets
+        extract: '[0].isFrozen'
+        unit: count
+        allowMissing: true
+        alert:
+          absoluteMax: 0
+          critical: true
+      - id: usdc_frozen
+        label: USDC frozen status
+        path: /api/markets
+        extract: '[2].isFrozen'
+        unit: count
+        allowMissing: true
+        alert:
+          absoluteMax: 0
+          critical: true
+      - id: weth_frozen
+        label: WETH frozen status
+        path: /api/markets
+        extract: '[3].isFrozen'
+        unit: count
+        allowMissing: true
+        alert:
+          absoluteMax: 0
+          critical: true
+
+  # ───────────── Sui Lending — basic uptime ─────────────
+  # Has /api/health (already deployed) but no public data API endpoints.
+  # Monitor only catches if the dashboard goes down.
+  - id: sui_lending
+    name: Sui Lending
+    baseUrl: https://sui-lending.vercel.app
+    healthPath: /api/health
+    enabled: true
     metrics: []
 
-  - id: colleague_dashboard_2
-    name: Colleague Dashboard 2
-    baseUrl: https://example2.datumlabs.xyz  # TODO
+  # ───────────── DuneUK Terminal — basic uptime ─────────────
+  # No discovered API endpoints — homepage 200 = alive signal only.
+  - id: duneuk
+    name: DuneUK Terminal
+    baseUrl: https://www.duneuk.com
+    healthPath: /
+    enabled: true
+    metrics: []
+
+  # ───────────── Moonwell — DISABLED, deployment broken ─────────────
+  # Production URL https://moonwell-dashboard-kappa.vercel.app/ returns 404
+  # and the bare project URL returns 402. Investigate / redeploy then re-enable.
+  - id: moonwell
+    name: Moonwell
+    baseUrl: https://moonwell-dashboard-kappa.vercel.app
+    healthPath: /
     enabled: false
     metrics: []
