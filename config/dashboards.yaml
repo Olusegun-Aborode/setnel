@@ -26,7 +26,7 @@ dashboards:
   # ───────────── Aave — lending, multi-chain v3/v4 ─────────────
   - id: aave
     name: Aave
-    baseUrl: https://aave.datumlabs.xyz   # TODO: confirm live URL
+    baseUrl: https://aave-dashboard.vercel.app
     healthPath: /api/health
     enabled: true
     metrics:
@@ -76,9 +76,12 @@ dashboards:
           percentChange: 100
 
   # ───────────── Centrifuge — RWA pools ─────────────
+  # NOTE: /api/health not yet deployed — redeploy this dashboard to pick it up.
+  # Until then, the monitor will fire one technical alert per check on the health
+  # probe; the metric checks against /api/overview etc. will still work.
   - id: centrifuge
     name: Centrifuge RWA
-    baseUrl: https://centrifuge.datumlabs.xyz   # TODO: confirm live URL
+    baseUrl: https://datumlabs-centrifuge.vercel.app
     healthPath: /api/health
     enabled: true
     metrics:
@@ -137,11 +140,14 @@ dashboards:
           percentChange: 20
 
   # ───────────── Navi — Sui lending ─────────────
+  # DISABLED: production deployment at https://datumlabs-defi-dashboard.vercel.app
+  # is 44 days stale and 404s on /api/pools. Redeploy this dashboard from the
+  # current local branch (which has the new routes), then flip enabled to true.
   - id: navi
     name: Navi Lending
-    baseUrl: https://navi.datumlabs.xyz   # TODO: confirm live URL
+    baseUrl: https://datumlabs-defi-dashboard.vercel.app
     healthPath: /api/health
-    enabled: true
+    enabled: false
     metrics:
       - id: total_supply
         label: Total supply
@@ -206,9 +212,10 @@ dashboards:
           percentChange: 10    # any sudden jump in all-time count is a cascade
 
   # ───────────── defi-tvl — cross-protocol TVL benchmark ─────────────
+  # NOTE: /api/health not yet deployed — redeploy to pick it up.
   - id: defi_tvl
     name: DeFi TVL Benchmark
-    baseUrl: https://defi-tvl.datumlabs.xyz   # TODO: confirm live URL
+    baseUrl: https://defi-tvl-dashboard.vercel.app
     healthPath: /api/health
     enabled: true
     metrics:
