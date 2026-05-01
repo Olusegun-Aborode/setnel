@@ -321,10 +321,10 @@ dashboards:
           percentChange: 10
 
   # ───────────── Spark Lend — per-asset risk monitor ─────────────
-  # Returns a flat array of markets; we monitor utilization and frozen-status
-  # on the major actives. Update indices when assets are added/delisted.
-  # As of writing: [0]=DAI, [2]=USDC, [3]=WETH, [8]=USDT.
-  # USDT is currently at 96% utilization — expect this to fire on first run.
+  # Uses the per-symbol endpoint (/api/markets/SYMBOL) — same source the UI
+  # consumes. The collection endpoint /api/markets has been observed serving
+  # stale/inconsistent data (see open issue: sparklend dashboard data layer).
+  # Symbol-keyed paths also survive listings/delistings without re-indexing.
   - id: sparklend
     name: Spark Lend
     baseUrl: https://sparklend-dashboard.vercel.app
@@ -333,8 +333,8 @@ dashboards:
     metrics:
       - id: dai_utilization
         label: DAI utilization
-        path: /api/markets
-        extract: '[0].utilization'
+        path: /api/markets/DAI
+        extract: utilization
         unit: percent
         allowMissing: true
         alert:
@@ -342,8 +342,8 @@ dashboards:
           critical: true
       - id: usdc_utilization
         label: USDC utilization
-        path: /api/markets
-        extract: '[2].utilization'
+        path: /api/markets/USDC
+        extract: utilization
         unit: percent
         allowMissing: true
         alert:
@@ -351,8 +351,8 @@ dashboards:
           critical: true
       - id: weth_utilization
         label: WETH utilization
-        path: /api/markets
-        extract: '[3].utilization'
+        path: /api/markets/WETH
+        extract: utilization
         unit: percent
         allowMissing: true
         alert:
@@ -360,8 +360,8 @@ dashboards:
           critical: true
       - id: usdt_utilization
         label: USDT utilization
-        path: /api/markets
-        extract: '[8].utilization'
+        path: /api/markets/USDT
+        extract: utilization
         unit: percent
         allowMissing: true
         alert:
@@ -370,8 +370,8 @@ dashboards:
       # Frozen status flips boolean → 1 when a market is frozen by governance.
       - id: dai_frozen
         label: DAI frozen status
-        path: /api/markets
-        extract: '[0].isFrozen'
+        path: /api/markets/DAI
+        extract: isFrozen
         unit: count
         allowMissing: true
         alert:
@@ -379,8 +379,8 @@ dashboards:
           critical: true
       - id: usdc_frozen
         label: USDC frozen status
-        path: /api/markets
-        extract: '[2].isFrozen'
+        path: /api/markets/USDC
+        extract: isFrozen
         unit: count
         allowMissing: true
         alert:
@@ -388,8 +388,8 @@ dashboards:
           critical: true
       - id: weth_frozen
         label: WETH frozen status
-        path: /api/markets
-        extract: '[3].isFrozen'
+        path: /api/markets/WETH
+        extract: isFrozen
         unit: count
         allowMissing: true
         alert:
