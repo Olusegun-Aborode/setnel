@@ -76,9 +76,6 @@ dashboards:
           percentChange: 100
 
   # ───────────── Centrifuge — RWA pools ─────────────
-  # NOTE: /api/health not yet deployed — redeploy this dashboard to pick it up.
-  # Until then, the monitor will fire one technical alert per check on the health
-  # probe; the metric checks against /api/overview etc. will still work.
   - id: centrifuge
     name: Centrifuge RWA
     baseUrl: https://datumlabs-centrifuge.vercel.app
@@ -140,18 +137,17 @@ dashboards:
           percentChange: 20
 
   # ───────────── Navi — Sui lending ─────────────
-  # DISABLED: production deployment at https://datumlabs-defi-dashboard.vercel.app
-  # is 44 days stale and 404s on /api/pools. Redeploy this dashboard from the
-  # current local branch (which has the new routes), then flip enabled to true.
+  # next.config.ts sets basePath: '/navi', so all routes are served under
+  # /navi/api/*. healthPath and metric paths reflect that.
   - id: navi
     name: Navi Lending
     baseUrl: https://datumlabs-defi-dashboard.vercel.app
-    healthPath: /api/health
-    enabled: false
+    healthPath: /navi/api/health
+    enabled: true
     metrics:
       - id: total_supply
         label: Total supply
-        path: /api/pools
+        path: /navi/api/pools
         extract: totals.totalSupplyUsd
         unit: usd
         alert:
@@ -159,14 +155,14 @@ dashboards:
           critical: true
       - id: total_borrows
         label: Total borrows
-        path: /api/pools
+        path: /navi/api/pools
         extract: totals.totalBorrowsUsd
         unit: usd
         alert:
           percentChange: 20
       - id: tvl
         label: TVL (available liquidity)
-        path: /api/pools
+        path: /navi/api/pools
         extract: totals.tvl
         unit: usd
         alert:
@@ -177,7 +173,7 @@ dashboards:
       # are listed/delisted.
       - id: pool_0_utilization
         label: Pool #0 utilization
-        path: /api/pools
+        path: /navi/api/pools
         extract: pools[0].utilization
         unit: percent
         allowMissing: true
@@ -186,7 +182,7 @@ dashboards:
           critical: true
       - id: pool_1_utilization
         label: Pool #1 utilization
-        path: /api/pools
+        path: /navi/api/pools
         extract: pools[1].utilization
         unit: percent
         allowMissing: true
@@ -195,7 +191,7 @@ dashboards:
           critical: true
       - id: pool_2_utilization
         label: Pool #2 utilization
-        path: /api/pools
+        path: /navi/api/pools
         extract: pools[2].utilization
         unit: percent
         allowMissing: true
@@ -205,14 +201,13 @@ dashboards:
       # Liquidation count in recent page — spike = liquidation cascade.
       - id: liquidations_total
         label: Total liquidations indexed
-        path: /api/liquidations?limit=1
+        path: /navi/api/liquidations?limit=1
         extract: total
         unit: count
         alert:
           percentChange: 10    # any sudden jump in all-time count is a cascade
 
   # ───────────── defi-tvl — cross-protocol TVL benchmark ─────────────
-  # NOTE: /api/health not yet deployed — redeploy to pick it up.
   - id: defi_tvl
     name: DeFi TVL Benchmark
     baseUrl: https://defi-tvl-dashboard.vercel.app
