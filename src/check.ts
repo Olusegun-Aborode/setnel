@@ -9,6 +9,28 @@ import {
   setSnapshot,
 } from './storage.js';
 
+/**
+ * Push a technical alert through the cooldown gate. We use the dashboard ID
+ * + a stable "kind" string (e.g. "health", "fetch:/api/foo") as the cooldown
+ * key so the same probe doesn't spam every 15min while a dashboard is down.
+ */
+async function pushTechnicalAlert(
+  alerts: Alert[],
+  dashboard: DashboardSpec,
+  kind: string,
+  alert: Omit<Extract<Alert, { kind: 'technical' }>, 'kind' | 'dashboardId' | 'dashboardName' | 'timestamp'>,
+): Promise<void> {
+  const allowed = await claimAlertSlot(dashboard.id, '_technical', kind);
+  if (!allowed) return;
+  alerts.push({
+    kind: 'technical',
+    dashboardId: dashboard.id,
+    dashboardName: dashboard.name,
+    timestamp: Date.now(),
+    ...alert,
+  });
+}
+
 export type CheckResult = {
   alerts: Alert[];
   samples: MetricSample[];
@@ -44,13 +66,9 @@ export async function runCheck(config: Config): Promise<CheckResult> {
       const url = joinUrl(dashboard.baseUrl, path);
       const res = await fetchJson(url);
       if (!res.ok) {
-        alerts.push({
-          kind: 'technical',
-          dashboardId: dashboard.id,
-          dashboardName: dashboard.name,
+        await pushTechnicalAlert(alerts, dashboard, `fetch:${path}`, {
           message: `GET ${path} failed — ${res.error} (after ${res.latencyMs}ms)`,
           critical: true,
-          timestamp: Date.now(),
         });
         continue;
       }
@@ -60,13 +78,9 @@ export async function runCheck(config: Config): Promise<CheckResult> {
       // outages that still return 200.
       const warnings = getPath(res.data, 'warnings');
       if (Array.isArray(warnings) && warnings.length > 0) {
-        alerts.push({
-          kind: 'technical',
-          dashboardId: dashboard.id,
-          dashboardName: dashboard.name,
+        await pushTechnicalAlert(alerts, dashboard, `warnings:${path}`, {
           message: `Partial fetch on ${path}: ${warnings.map(String).join('; ')}`,
           critical: false,
-          timestamp: Date.now(),
         });
       }
 
@@ -83,26 +97,18 @@ async function probeHealth(dashboard: DashboardSpec, alerts: Alert[]): Promise<v
   const url = joinUrl(dashboard.baseUrl, dashboard.healthPath);
   const res = await fetchJson(url);
   if (!res.ok) {
-    alerts.push({
-      kind: 'technical',
-      dashboardId: dashboard.id,
-      dashboardName: dashboard.name,
+    await pushTechnicalAlert(alerts, dashboard, 'health', {
       message: `Health probe failed — ${res.error}`,
       critical: true,
-      timestamp: Date.now(),
     });
     return;
   }
   // Soft signal: if /api/health returns { status: 'degraded' } surface it.
   const status = getPath(res.data, 'status');
   if (typeof status === 'string' && status !== 'ok') {
-    alerts.push({
-      kind: 'technical',
-      dashboardId: dashboard.id,
-      dashboardName: dashboard.name,
+    await pushTechnicalAlert(alerts, dashboard, 'health-status', {
       message: `Health status is "${status}"`,
       critical: status === 'down',
-      timestamp: Date.now(),
     });
   }
 }
@@ -119,15 +125,11 @@ async function evaluateMetric(
 
   if (value == null) {
     if (!metric.allowMissing) {
-      alerts.push({
-        kind: 'technical',
-        dashboardId: dashboard.id,
-        dashboardName: dashboard.name,
+      await pushTechnicalAlert(alerts, dashboard, `extract:${metric.id}`, {
         metricId: metric.id,
         label: metric.label,
         message: `Extraction failed: "${metric.extract}" was ${describe(raw)}`,
         critical: false,
-        timestamp: Date.now(),
       });
     }
     return;
