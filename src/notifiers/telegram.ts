@@ -2,7 +2,11 @@ import { requireEnv } from '../config.js';
 
 /**
  * Send a plain-text message to the configured Telegram chat.
- * Uses HTML parse mode so we only need to escape `<`, `>`, `&`.
+ *
+ * No parse_mode — we send raw text so error bodies containing HTML/Markdown
+ * (e.g. a 404 page snippet) can't break the API call. Neither the alert
+ * formatter nor the digest formatter relies on rich formatting in TG.
+ *
  * Falls back silently if credentials aren't configured so locally-run checks
  * don't die before reaching the check logic.
  */
@@ -18,7 +22,6 @@ export async function sendTelegram(text: string): Promise<void> {
   const body = {
     chat_id: chatId,
     text: text.slice(0, 4000), // Telegram hard limit is 4096
-    parse_mode: 'HTML',
     disable_web_page_preview: true,
   };
 
