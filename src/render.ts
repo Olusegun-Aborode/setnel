@@ -27,47 +27,75 @@ export function signedPct(pct: number): string {
   return `${s}${pct.toFixed(2)}%`;
 }
 
-// ─── Telegram (MarkdownV2) ─────────────────────────────────────────────
-// We use plain HTML parse_mode in the sender (simpler escaping), so these
-// functions just produce readable plain text.
+// ─── Telegram (plain text) ─────────────────────────────────────────────
+// Sender uses no parse_mode, so the format is whatever shows up in TG raw.
+// Two clearly-distinct categories so a glance tells you which kind of alert
+// is firing:
+//   🔧 Technical Issue  — a failure in the dashboard / monitor itself
+//                          (dashboard down, route 404, response unparseable)
+//   📊 Data Insight     — a metric value crossed a configured threshold
+//                          (TVL drop, utilization spike, liquidation cascade)
 
 export function renderAlertText(alert: Alert): string {
-  const prefix = alert.critical ? '🚨 CRITICAL' : '⚠️ Alert';
+  const severity = alert.critical ? '🚨 CRITICAL' : '⚠️ WARNING';
+
   if (alert.kind === 'technical') {
-    const where = alert.label
-      ? `${alert.dashboardName} → ${alert.label}`
+    const subject = alert.label
+      ? `${alert.dashboardName} — ${alert.label}`
       : alert.dashboardName;
-    return `${prefix} • Technical breakdown\n${where}\n${alert.message}`;
+    return [
+      `${severity}  •  🔧 Technical Issue`,
+      `Where: ${subject}`,
+      `What:  ${alert.message}`,
+      `Why:   The monitor couldn't read this dashboard's data.`,
+      `       This is a code/infra issue, not a market signal.`,
+    ].join('\n');
   }
+
+  // Data insight — metric value breached a rule.
+  const change =
+    Number.isFinite(alert.deltaPct) && alert.previous !== 0
+      ? `${formatValue(alert.previous, alert.unit)}  →  ${formatValue(alert.current, alert.unit)}  (${signedPct(alert.deltaPct)})`
+      : `${formatValue(alert.current, alert.unit)} (no prior reading)`;
+
   return [
-    `${prefix} • ${alert.dashboardName}`,
-    `Metric: ${alert.label}`,
-    `Current: ${formatValue(alert.current, alert.unit)}`,
-    `Previous: ${formatValue(alert.previous, alert.unit)}`,
-    `Change: ${signedPct(alert.deltaPct)}`,
-    `Rule: ${alert.rule}`,
+    `${severity}  •  📊 Data Insight`,
+    `Where: ${alert.dashboardName} — ${alert.label}`,
+    `Value: ${change}`,
+    `Why:   ${alert.rule}`,
   ].join('\n');
 }
 
 export function renderAlertHtml(alert: Alert): string {
   const color = alert.critical ? '#d32f2f' : '#ed6c02';
+  const tag = alert.critical
+    ? '<span style="background:#d32f2f;color:#fff;font-size:11px;padding:2px 6px;border-radius:3px;font-weight:600;">CRITICAL</span>'
+    : '<span style="background:#ed6c02;color:#fff;font-size:11px;padding:2px 6px;border-radius:3px;font-weight:600;">WARNING</span>';
+
   if (alert.kind === 'technical') {
     const where = alert.label
-      ? `${escapeHtml(alert.dashboardName)} → ${escapeHtml(alert.label)}`
+      ? `${escapeHtml(alert.dashboardName)} — ${escapeHtml(alert.label)}`
       : escapeHtml(alert.dashboardName);
     return `
-      <div style="border-left:4px solid ${color};padding:8px 12px;margin:8px 0;background:#fafafa;">
-        <strong>Technical breakdown</strong> — ${where}<br/>
-        <code>${escapeHtml(alert.message)}</code>
+      <div style="border-left:4px solid ${color};padding:10px 14px;margin:10px 0;background:#fafafa;border-radius:0 4px 4px 0;">
+        <div style="margin-bottom:6px;">${tag} <strong>🔧 Technical Issue</strong></div>
+        <div style="margin-bottom:4px;"><b>${where}</b></div>
+        <div style="color:#444;">${escapeHtml(alert.message)}</div>
+        <div style="color:#888;font-size:12px;margin-top:6px;">Code/infra issue, not a market signal.</div>
       </div>`;
   }
+
+  const change =
+    Number.isFinite(alert.deltaPct) && alert.previous !== 0
+      ? `${formatValue(alert.previous, alert.unit)} → <b>${formatValue(alert.current, alert.unit)}</b> (${signedPct(alert.deltaPct)})`
+      : `<b>${formatValue(alert.current, alert.unit)}</b> <small style="color:#888;">(no prior reading)</small>`;
+
   return `
-    <div style="border-left:4px solid ${color};padding:8px 12px;margin:8px 0;background:#fafafa;">
-      <strong>${escapeHtml(alert.dashboardName)}</strong> — ${escapeHtml(alert.label)}<br/>
-      Current: <b>${formatValue(alert.current, alert.unit)}</b>,
-      previous: ${formatValue(alert.previous, alert.unit)},
-      change: <b>${signedPct(alert.deltaPct)}</b><br/>
-      <small>${escapeHtml(alert.rule)}</small>
+    <div style="border-left:4px solid ${color};padding:10px 14px;margin:10px 0;background:#fafafa;border-radius:0 4px 4px 0;">
+      <div style="margin-bottom:6px;">${tag} <strong>📊 Data Insight</strong></div>
+      <div style="margin-bottom:4px;"><b>${escapeHtml(alert.dashboardName)}</b> — ${escapeHtml(alert.label)}</div>
+      <div style="color:#444;">${change}</div>
+      <div style="color:#888;font-size:12px;margin-top:6px;">${escapeHtml(alert.rule)}</div>
     </div>`;
 }
 

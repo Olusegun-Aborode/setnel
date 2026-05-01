@@ -20,7 +20,7 @@ export async function fetchJson(url: string): Promise<FetchResult> {
       return {
         ok: false,
         status: res.status,
-        error: `HTTP ${res.status}: ${truncate(text, 200)}`,
+        error: `HTTP ${res.status} ${humanStatus(res.status)} — ${summarizeBody(text)}`,
         latencyMs,
       };
     }
@@ -29,10 +29,11 @@ export async function fetchJson(url: string): Promise<FetchResult> {
     try {
       data = JSON.parse(text);
     } catch {
+      // Don't dump raw HTML into Telegram. Just describe what came back.
       return {
         ok: false,
         status: res.status,
-        error: `Non-JSON response: ${truncate(text, 200)}`,
+        error: `Got HTTP ${res.status} but body was ${summarizeBody(text)} (expected JSON)`,
         latencyMs,
       };
     }
@@ -51,6 +52,32 @@ export async function fetchJson(url: string): Promise<FetchResult> {
   }
 }
 
-function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + '…' : s;
+/**
+ * Reduce an arbitrary response body to a short, readable description
+ * instead of dumping raw HTML/text into a Telegram alert.
+ */
+function summarizeBody(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed === '') return 'an empty body';
+  const lower = trimmed.slice(0, 200).toLowerCase();
+  if (lower.startsWith('<!doctype') || lower.startsWith('<html')) return 'an HTML page';
+  if (lower.startsWith('<?xml')) return 'an XML document';
+  if (lower.startsWith('<')) return 'an HTML/XML fragment';
+  // Plain-text errors — show a clipped version.
+  const oneLine = trimmed.replace(/\s+/g, ' ').slice(0, 120);
+  return `"${oneLine}${trimmed.length > 120 ? '…' : ''}"`;
+}
+
+function humanStatus(code: number): string {
+  switch (code) {
+    case 401: return '(Unauthorized — check auth/secrets)';
+    case 402: return '(Payment Required — Vercel deployment-protection?)';
+    case 403: return '(Forbidden)';
+    case 404: return '(Not Found — route may not be deployed)';
+    case 500: return '(Server Error)';
+    case 502: return '(Bad Gateway — upstream down?)';
+    case 503: return '(Service Unavailable)';
+    case 504: return '(Gateway Timeout — upstream slow)';
+    default: return '';
+  }
 }

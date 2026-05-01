@@ -96,7 +96,13 @@ export async function runCheck(config: Config): Promise<CheckResult> {
 async function probeHealth(dashboard: DashboardSpec, alerts: Alert[]): Promise<void> {
   const url = joinUrl(dashboard.baseUrl, dashboard.healthPath);
   const res = await fetchJson(url);
+
+  // For health probes, "the page returned 2xx" is enough — a dashboard whose
+  // healthPath is "/" will return HTML and that's fine. Only flag a failure
+  // when the HTTP status is missing or not 2xx.
   if (!res.ok) {
+    const httpAlive = res.status != null && res.status >= 200 && res.status < 300;
+    if (httpAlive) return;
     await pushTechnicalAlert(alerts, dashboard, 'health', {
       message: `Health probe failed — ${res.error}`,
       critical: true,
