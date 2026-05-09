@@ -26,13 +26,17 @@ async function main() {
 
     case 'check': {
       const { alerts, samples } = await runCheck(config);
+      const dataAlerts = alerts.filter((a) => a.kind === 'metric');
+      const techAlerts = alerts.filter((a) => a.kind === 'technical');
       console.log(
         `check: ${samples.length} samples, ${alerts.length} alerts ` +
-          `(${alerts.filter((a) => a.critical).length} critical)`,
+          `(${dataAlerts.length} data, ${techAlerts.length} technical, ` +
+          `${alerts.filter((a) => a.critical).length} critical)`,
       );
-      // Immediate Telegram for every alert that made it past the cooldown.
-      if (config.notifications.telegram.enabled && alerts.length > 0) {
-        for (const alert of alerts) {
+      // Telegram = data alerts only. Technical alerts get batched into the
+      // 12-hour email digest so the channel stays high-signal.
+      if (config.notifications.telegram.enabled && dataAlerts.length > 0) {
+        for (const alert of dataAlerts) {
           try {
             await sendTelegram(renderAlertText(alert));
           } catch (err) {
@@ -40,7 +44,8 @@ async function main() {
           }
         }
       }
-      // Exit non-zero on any critical alert so the GH Actions run is flagged.
+      // Exit non-zero on any critical alert (data or technical) so the GH
+      // Actions run is flagged for inspection in the Actions tab.
       if (alerts.some((a) => a.critical)) process.exitCode = 1;
       return;
     }

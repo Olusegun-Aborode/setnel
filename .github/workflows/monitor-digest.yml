@@ -1,10 +1,13 @@
 name: monitor-digest
-# Runs every 6 hours. Builds a full report of current values + alerts fired
-# in the window, posts to Telegram, and emails the HTML version.
+# Runs every 12 hours (00:00 and 12:00 UTC). Builds a full report covering:
+#  - Current values for every metric across every dashboard
+#  - Data-insight alerts fired in the last 12h (also pushed to TG immediately)
+#  - Technical alerts batched up since the last digest (TG never sees these)
+# Sends the report to email; the TG mirror posts the same content as a summary.
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */12 * * *'
   workflow_dispatch: {}
 
 concurrency:
