@@ -1,0 +1,34 @@
+name: monitor-warmup
+# Pings each dashboard's healthPath every 5 minutes to keep Vercel serverless
+# functions hot. Without this, the every-15-min check workflow regularly
+# fired phantom timeout alerts because Vercel cold-starts can take 12-18s
+# (we saw a 60% false-positive rate before this was added).
+#
+# This is intentionally lightweight: no Redis state, no Telegram, no email.
+# Warmup failures are non-actionable and we don't alert on them.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: monitor-warmup
+  cancel-in-progress: true
+
+jobs:
+  warmup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Warm dashboards
+        run: npm run warmup

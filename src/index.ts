@@ -56,9 +56,47 @@ async function main() {
       return;
     }
 
+    case 'warmup': {
+      // Ping each enabled dashboard's healthPath to keep Vercel functions
+      // hot. Cold starts can take 12-18s, which used to fire phantom timeout
+      // alerts on the every-15-min check. Run this every 5 min from a
+      // separate workflow — Vercel's idle window is ~5-10 min, so this keeps
+      // the next monitor-check fast. We deliberately do NOT alert on
+      // failures here; warmup misses are non-actionable and would just
+      // create noise.
+      const enabled = config.dashboards.filter((d) => d.enabled);
+      const results = await Promise.allSettled(
+        enabled.map(async (d) => {
+          const url = `${d.baseUrl.replace(/\/$/, '')}${d.healthPath.startsWith('/') ? d.healthPath : '/' + d.healthPath}`;
+          const started = Date.now();
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 30_000);
+          try {
+            const res = await fetch(url, { signal: controller.signal });
+            return { name: d.name, ok: res.ok, status: res.status, ms: Date.now() - started };
+          } finally {
+            clearTimeout(timer);
+          }
+        }),
+      );
+      let warm = 0;
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        const name = enabled[i].name;
+        if (r.status === 'fulfilled') {
+          if (r.value.ok) warm++;
+          console.log(`  ${r.value.ok ? '✓' : '✗'} ${name}: HTTP ${r.value.status} in ${r.value.ms}ms`);
+        } else {
+          console.log(`  ✗ ${name}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
+        }
+      }
+      console.log(`warmup: ${warm}/${enabled.length} dashboards warm.`);
+      return;
+    }
+
     default: {
       console.error(
-        `Usage: datum-monitor <check|digest|validate-config> [--config path/to/dashboards.yaml]`,
+        `Usage: datum-monitor <check|digest|warmup|validate-config> [--config path/to/dashboards.yaml]`,
       );
       process.exit(2);
     }

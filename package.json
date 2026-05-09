@@ -7,6 +7,7 @@
   "scripts": {
     "check": "tsx src/index.ts check",
     "digest": "tsx src/index.ts digest",
+    "warmup": "tsx src/index.ts warmup",
     "typecheck": "tsc --noEmit",
     "lint:config": "tsx src/index.ts validate-config"
   },

@@ -31,5 +31,8 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Email is digest-only; these are intentionally absent here.
+          # 25s is generous enough to absorb Vercel cold-start spin-ups
+          # (we observed 12-18s in real flaps) without masking real outages.
+          REQUEST_TIMEOUT_MS: '25000'
+          # Email is digest-only; those secrets are intentionally absent here.
         run: npm run check
