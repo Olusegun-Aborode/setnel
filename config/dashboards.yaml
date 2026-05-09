@@ -128,13 +128,13 @@ dashboards:
         alert:
           percentChange: 50
           critical: true       # redemption spikes → liquidity stress
-      - id: unique_holders
-        label: Unique holders
-        path: /api/investors
-        extract: totalUniqueAccounts
-        unit: count
-        alert:
-          percentChange: 20
+      # `unique_holders` removed — the underlying /api/investors route
+      # was retired (commit 7af1fae in centrifuge-rwa-dashboard). The
+      # data source it pulled from (tokenInstancePositions) returned
+      # vault contracts and wrappers as "investors", not real EOAs, so
+      # the page and its API were both deleted. Per-wrapper top holders
+      # are still surfaced on /dashboard/derwa/[symbol] if a similar
+      # check is needed.
 
   # ───────────── Navi — Sui lending ─────────────
   # next.config.ts sets basePath: '/navi', so all routes are served under
