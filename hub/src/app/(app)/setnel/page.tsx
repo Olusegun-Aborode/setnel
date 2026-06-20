@@ -4,13 +4,13 @@ import {
   getIncidents,
   getSummary,
   getHealthMatrix,
-  getDailyCheckTotals,
+  getChartBundle,
   HEALTH_EXPECTED_PER_DAY,
   type Filters,
   type DashboardHealth,
 } from '@/lib/queries';
 import { buildDeepLink } from '@/lib/ingest';
-import { CollectionLineChart } from './charts';
+import { TrendChart } from './trend-chart';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,11 +48,11 @@ export default async function SetnelConsole({
     sinceHours: sp.since ? Number(sp.since) : undefined,
   };
 
-  const [incidents, summary, health, daily] = await Promise.all([
+  const [incidents, summary, health, bundle] = await Promise.all([
     getIncidents(filters),
     getSummary(),
     getHealthMatrix(),
-    getDailyCheckTotals(30),
+    getChartBundle(30),
   ]);
 
   const healthy = health.filter((h) => h.status === 'healthy').length;
@@ -86,13 +86,13 @@ export default async function SetnelConsole({
         <Kpi label="Critical" value={String(summary.criticalActive)} sub="active" tone={summary.criticalActive === 0 ? 'good' : 'bad'} />
       </section>
 
-      {/* Collection trend */}
+      {/* Trend — filterable by dashboard / category / protocol */}
       <section className="panel">
         <div className="panel-head">
-          <h2>Collection volume</h2>
-          <span className="panel-note">Successful detector check-ins per day, all dashboards · last 30 days</span>
+          <h2>Trends</h2>
+          <span className="panel-note">Last 30 days · switch the breakdown, click the legend to toggle lines</span>
         </div>
-        <CollectionLineChart data={daily} />
+        <TrendChart bundle={bundle} />
       </section>
 
       {/* Per-dashboard health matrix */}

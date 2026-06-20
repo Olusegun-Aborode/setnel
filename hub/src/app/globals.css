@@ -107,6 +107,19 @@ h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
 /* ── Chart ── */
 .chart { width: 100%; height: auto; display: block; }
 
+/* ── Trend chart controls ── */
+.trend-controls { margin-bottom: 12px; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+.seg-btn { border: none; background: transparent; cursor: pointer; font-size: 12.5px; color: var(--muted); padding: 5px 10px; border-radius: 6px; }
+.seg-btn:hover { color: var(--ink); }
+.seg-on { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+.trend-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; }
+.leg { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; background: none; border: none; padding: 2px 0; font-size: 12.5px; color: var(--ink-2); }
+.leg-swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; flex: none; }
+.leg-off { color: var(--faint); text-decoration: line-through; }
+.leg-off .leg-swatch { opacity: 0.3; }
+.trend-empty { color: var(--muted); padding: 32px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius); }
+
 /* ── Health matrix ── */
 .matrix { display: flex; flex-direction: column; }
 .matrix-row {

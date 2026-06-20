@@ -150,3 +150,87 @@ export async function getDailyCheckTotals(days = 30): Promise<DayCell[]> {
   }
   return out;
 }
+
+// ── Filterable trend datasets (multi-line) ─────────────────────────────
+
+export type Series = { key: string; label: string; values: number[] };
+export type ChartBundle = {
+  days: string[];
+  collectionByDashboard: Series[]; // heartbeats/day per dashboard
+  alertsByDashboard: Series[]; // events/day per dashboard
+  alertsByCategory: Series[]; // events/day per category
+  alertsByProtocol: Series[]; // events/day per payload.protocol (where tagged)
+};
+
+function dayAxis(days: number): string[] {
+  const out: string[] = [];
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+// Pivot {key,label,day,value} rows into per-key value arrays aligned to the axis,
+// busiest series first.
+function pivot(
+  rows: { key: string; label: string; day: string; value: number }[],
+  axis: string[],
+): Series[] {
+  const byKey = new Map<string, { label: string; map: Map<string, number> }>();
+  for (const r of rows) {
+    if (r.key == null) continue;
+    if (!byKey.has(r.key)) byKey.set(r.key, { label: r.label ?? r.key, map: new Map() });
+    byKey.get(r.key)!.map.set(r.day, r.value);
+  }
+  return [...byKey.entries()]
+    .map(([key, { label, map }]) => ({ key, label, values: axis.map((d) => map.get(d) ?? 0) }))
+    .sort((a, b) => b.values.reduce((s, v) => s + v, 0) - a.values.reduce((s, v) => s + v, 0));
+}
+
+/** All breakdown datasets for the interactive trend chart. */
+export async function getChartBundle(days = 30): Promise<ChartBundle> {
+  const axis = dayAxis(days);
+
+  const collRows = (await sql`
+    SELECT h.dashboard_id AS key, d.name AS label,
+           to_char(h.day, 'YYYY-MM-DD') AS day, h.checks::int AS value
+    FROM dashboard_health h JOIN dashboards d ON d.id = h.dashboard_id
+    WHERE h.day > current_date - ${days}::int
+  `) as { key: string; label: string; day: string; value: number }[];
+
+  const alertDashRows = (await sql`
+    SELECT e.dashboard_id AS key, d.name AS label,
+           to_char(e.fired_at::date, 'YYYY-MM-DD') AS day, count(*)::int AS value
+    FROM events e JOIN dashboards d ON d.id = e.dashboard_id
+    WHERE e.fired_at > now() - (${days} || ' days')::interval
+    GROUP BY 1, 2, 3
+  `) as { key: string; label: string; day: string; value: number }[];
+
+  const alertCatRows = (await sql`
+    SELECT category AS key, category AS label,
+           to_char(fired_at::date, 'YYYY-MM-DD') AS day, count(*)::int AS value
+    FROM events
+    WHERE fired_at > now() - (${days} || ' days')::interval
+    GROUP BY 1, 3
+  `) as { key: string; label: string; day: string; value: number }[];
+
+  const alertProtoRows = (await sql`
+    SELECT payload->>'protocol' AS key, payload->>'protocol' AS label,
+           to_char(fired_at::date, 'YYYY-MM-DD') AS day, count(*)::int AS value
+    FROM events
+    WHERE fired_at > now() - (${days} || ' days')::interval
+      AND payload->>'protocol' IS NOT NULL
+    GROUP BY 1, 3
+  `) as { key: string; label: string; day: string; value: number }[];
+
+  return {
+    days: axis,
+    collectionByDashboard: pivot(collRows, axis),
+    alertsByDashboard: pivot(alertDashRows, axis),
+    alertsByCategory: pivot(alertCatRows, axis),
+    alertsByProtocol: pivot(alertProtoRows, axis),
+  };
+}
