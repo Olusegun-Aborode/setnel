@@ -60,3 +60,30 @@ CREATE TABLE IF NOT EXISTS dashboard_health (
   PRIMARY KEY (dashboard_id, day)
 );
 CREATE INDEX IF NOT EXISTS dashboard_health_day_idx ON dashboard_health (day);
+
+-- Metric time-series. The keystone for adaptive thresholds, drill-down charts,
+-- exposure weighting, cross-source verification, and backtesting. The detector
+-- runtime emits samples every run (even when no alert fires).
+CREATE TABLE IF NOT EXISTS metric_samples (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  dashboard_id TEXT NOT NULL REFERENCES dashboards(id),
+  metric_key   TEXT NOT NULL,                     -- e.g. 'aave.tvl', 'sui.navi.tvl'
+  value        DOUBLE PRECISION NOT NULL,
+  source       TEXT NOT NULL DEFAULT 'dashboard', -- 'dashboard' | 'defillama' | 'chain'
+  ts           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS metric_samples_key_ts ON metric_samples (dashboard_id, metric_key, ts DESC);
+
+-- Dead-letter for notifications that failed every retry. Surfaced on the
+-- console so a delivery failure is never silently lost.
+CREATE TABLE IF NOT EXISTS failed_notifications (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  channel      TEXT NOT NULL,                     -- 'telegram' | 'email'
+  incident_id  BIGINT,
+  message      TEXT NOT NULL,
+  error        TEXT,
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS failed_notifications_open_idx ON failed_notifications (created_at DESC) WHERE resolved_at IS NULL;

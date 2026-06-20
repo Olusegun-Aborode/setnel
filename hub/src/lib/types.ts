@@ -25,10 +25,20 @@ export const IncomingEventSchema = z.object({
   payload: z.record(z.unknown()).optional(),
 });
 
+// Metric samples a detector run reports every time (not just on breach).
+// These populate the metric time-series store.
+export const MetricSampleSchema = z.object({
+  metricKey: z.string().min(1).max(200),
+  value: z.number().finite(),
+  source: z.string().max(40).optional(), // default 'dashboard'
+});
+
 export const EventBatchSchema = z.object({
   dashboardId: z.string().min(1),
   events: z.array(IncomingEventSchema).max(200),
+  samples: z.array(MetricSampleSchema).max(500).optional(),
 });
 
 export type IncomingEvent = z.infer<typeof IncomingEventSchema>;
+export type MetricSample = z.infer<typeof MetricSampleSchema>;
 export type EventBatch = z.infer<typeof EventBatchSchema>;

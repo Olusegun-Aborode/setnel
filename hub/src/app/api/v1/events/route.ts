@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql, type DashboardRow } from '@/lib/db';
 import { dashboardSecret, verifySignature } from '@/lib/auth-hmac';
-import { ingestBatch, recordCheckin } from '@/lib/ingest';
+import { ingestBatch, recordCheckin, recordSamples } from '@/lib/ingest';
 import { EventBatchSchema } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const { dashboardId, events } = result.data;
+  const { dashboardId, events, samples } = result.data;
 
   // Auth: verify the signature with the dashboard's shared secret.
   const secret = dashboardSecret(dashboardId);
@@ -50,10 +50,13 @@ export async function POST(req: Request) {
   // Heartbeat on every authenticated check-in — even with zero alerts.
   await recordCheckin(dashboardId);
 
+  // Persist metric samples (time-series) regardless of whether alerts fired.
+  const sampled = await recordSamples(dashboardId, samples ?? []);
+
   if (events.length === 0) {
-    return NextResponse.json({ ok: true, stored: 0, incidentsOpened: 0, notified: 0 });
+    return NextResponse.json({ ok: true, stored: 0, incidentsOpened: 0, notified: 0, sampled });
   }
 
   const out = await ingestBatch(rows[0], events);
-  return NextResponse.json({ ok: true, ...out });
+  return NextResponse.json({ ok: true, ...out, sampled });
 }

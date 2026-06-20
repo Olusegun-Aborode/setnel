@@ -85,19 +85,45 @@ export async function ingestBatch(
     // info severity never pages; technical category never pages.
     if (shouldNotify && severity !== 'info' && !isTechnical(ev.category)) {
       const deepLink = buildDeepLink(dashboard.base_url, linkPath, incidentId);
-      await notifyTelegram({
+      const sent = await notifyTelegram({
         dashboardName: dashboard.name,
         severity,
         category: ev.category,
         message: ev.message,
         deepLink,
+        incidentId,
       });
-      await sql`UPDATE incidents SET notified_at = now() WHERE id = ${incidentId}`;
-      notified += 1;
+      // Only mark notified if it actually went out. A failed send is
+      // dead-lettered; leaving notified_at null lets the next run retry.
+      if (sent) {
+        await sql`UPDATE incidents SET notified_at = now() WHERE id = ${incidentId}`;
+        notified += 1;
+      }
     }
   }
 
   return { stored, incidentsOpened, notified };
+}
+
+/**
+ * Persist metric samples reported by a detector run. Best-effort, batched.
+ * These feed the time-series store (adaptive thresholds, charts, backtesting).
+ */
+export async function recordSamples(
+  dashboardId: string,
+  samples: { metricKey: string; value: number; source?: string }[],
+): Promise<number> {
+  if (!samples.length) return 0;
+  // Batch insert via unnest — one round-trip.
+  const keys = samples.map((s) => s.metricKey);
+  const values = samples.map((s) => s.value);
+  const sources = samples.map((s) => s.source ?? 'dashboard');
+  await sql`
+    INSERT INTO metric_samples (dashboard_id, metric_key, value, source)
+    SELECT ${dashboardId}, k, v, src
+    FROM unnest(${keys}::text[], ${values}::float8[], ${sources}::text[]) AS t(k, v, src)
+  `;
+  return samples.length;
 }
 
 /**

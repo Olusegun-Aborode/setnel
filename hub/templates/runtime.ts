@@ -1,8 +1,8 @@
 // Setnel detector runtime — per-dashboard.
 //
-// This file is the small kit each dashboard carries. Detectors are defined with
-// defineDetector() in detectors.ts; runDetectors() executes them and POSTs any
-// events to the Setnel Hub, signed with this dashboard's shared secret.
+// Detectors are defined with defineDetector() in detectors.ts; runDetectors()
+// executes them and POSTs any events — plus metric samples — to the Setnel Hub,
+// signed with this dashboard's shared secret.
 //
 // Eventually this becomes the `@datumlabs/setnel` package. For now it lives in
 // the repo so there's nothing to publish/install.
@@ -42,6 +42,10 @@ export type Detector<T = unknown> = {
   source: () => Promise<T>;
   // Pure-ish: given current data, return zero or more events to fire.
   detect: (current: T) => DetectorEvent[] | Promise<DetectorEvent[]>;
+  // Optional: report metric values every run (not just on breach). Returns a
+  // map of metric_key → value. Feeds the Hub's time-series store, which powers
+  // adaptive thresholds, drill-down charts, and backtesting.
+  sample?: (current: T) => Record<string, number>;
 };
 
 const registry: Detector[] = [];
@@ -63,32 +67,37 @@ type RunOptions = {
 type RunReport = {
   ran: number;
   events: number;
+  samples: number;
   errors: { detector: string; error: string }[];
   hub?: unknown;
 };
 
-/** Execute every registered detector and POST the combined batch to the Hub. */
+/** Execute every registered detector and POST events + samples to the Hub. */
 export async function runDetectors(opts: RunOptions): Promise<RunReport> {
   const detectors = getDetectors();
   const errors: RunReport['errors'] = [];
   const batch: Array<DetectorEvent & { detectorId: string; category: Category; severity: Severity }> = [];
+  const sampleMap = new Map<string, number>(); // metric_key → value (last wins)
 
   for (const d of detectors) {
     try {
       const data = await d.source();
       const events = await d.detect(data);
       for (const e of events) {
-        batch.push({
-          ...e,
-          detectorId: d.id,
-          category: d.category,
-          severity: d.severity,
-        });
+        batch.push({ ...e, detectorId: d.id, category: d.category, severity: d.severity });
+      }
+      if (d.sample) {
+        const s = d.sample(data);
+        for (const [k, v] of Object.entries(s)) {
+          if (typeof v === 'number' && Number.isFinite(v)) sampleMap.set(k, v);
+        }
       }
     } catch (err) {
       errors.push({ detector: d.id, error: err instanceof Error ? err.message : String(err) });
     }
   }
+
+  const samples = [...sampleMap.entries()].map(([metricKey, value]) => ({ metricKey, value }));
 
   const body = JSON.stringify({
     dashboardId: opts.dashboardId,
@@ -101,6 +110,7 @@ export async function runDetectors(opts: RunOptions): Promise<RunReport> {
       linkPath: e.linkPath,
       payload: e.payload,
     })),
+    samples,
   });
 
   const signature = createHmac('sha256', opts.secret).update(body).digest('hex');
@@ -117,5 +127,5 @@ export async function runDetectors(opts: RunOptions): Promise<RunReport> {
     errors.push({ detector: '_hub', error: err instanceof Error ? err.message : String(err) });
   }
 
-  return { ran: detectors.length, events: batch.length, errors, hub };
+  return { ran: detectors.length, events: batch.length, samples: samples.length, errors, hub };
 }

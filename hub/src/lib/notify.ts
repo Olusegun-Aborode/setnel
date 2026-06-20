@@ -1,4 +1,4 @@
-import type { Severity } from './db';
+import { sql, type Severity } from './db';
 
 const SEVERITY_PREFIX: Record<Severity, string> = {
   info: 'ℹ️ Info',
@@ -7,10 +7,34 @@ const SEVERITY_PREFIX: Record<Severity, string> = {
   emergency: '🚨🚨🚨 EMERGENCY',
 };
 
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 500;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** One raw Telegram send attempt. Returns ok + error detail. */
+async function sendTelegramOnce(text: string): Promise<{ ok: boolean; error?: string }> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return { ok: false, error: 'telegram not configured' };
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4000), disable_web_page_preview: true }),
+    });
+    if (res.ok) return { ok: true };
+    const detail = await res.text().catch(() => '');
+    return { ok: false, error: `HTTP ${res.status}: ${detail.slice(0, 200)}` };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 /**
- * Send a data alert to Telegram. Plain text (no parse_mode) so message bodies
- * with stray <, >, & can't break the API call. Mirrors datum-monitor routing:
- * data-insight categories go to TG; `technical` does not.
+ * Send a data alert to Telegram with retry. On final failure, write to the
+ * dead-letter table so a delivery failure is never silently lost.
+ * Plain text (no parse_mode) so stray <, >, & can't break the API call.
  */
 export async function notifyTelegram(args: {
   dashboardName: string;
@@ -18,12 +42,11 @@ export async function notifyTelegram(args: {
   category: string;
   message: string;
   deepLink: string;
-}): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) {
+  incidentId?: string | number;
+}): Promise<boolean> {
+  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
     console.warn('[notify] telegram not configured — skipping');
-    return;
+    return false;
   }
 
   const text = [
@@ -33,19 +56,25 @@ export async function notifyTelegram(args: {
     `Open: ${args.deepLink}`,
   ].join('\n');
 
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: text.slice(0, 4000),
-      disable_web_page_preview: true,
-    }),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    console.error('[notify] telegram failed', res.status, detail.slice(0, 200));
+  let lastError = 'unknown';
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const r = await sendTelegramOnce(text);
+    if (r.ok) return true;
+    lastError = r.error ?? 'unknown';
+    if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS * attempt);
   }
+
+  // All attempts failed — dead-letter it.
+  console.error('[notify] telegram failed after retries:', lastError);
+  try {
+    await sql`
+      INSERT INTO failed_notifications (channel, incident_id, message, error, attempts)
+      VALUES ('telegram', ${args.incidentId ?? null}, ${text}, ${lastError}, ${MAX_ATTEMPTS})
+    `;
+  } catch (e) {
+    console.error('[notify] dead-letter write failed', e);
+  }
+  return false;
 }
 
 // Whether a category is an internal/technical issue (TG-suppressed).
