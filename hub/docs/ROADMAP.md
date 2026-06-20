@@ -1,7 +1,29 @@
 # Setnel Roadmap — from MVP to institutional-grade
 
-Status: planning. Sequenced so each phase ships standalone value and unblocks
-the next. Effort buckets: **S** = a few days · **M** = ~1 week · **L** = 2-3 weeks.
+Status: **✅ COMPLETE — all 7 phases shipped & live at setnel.datumlab.xyz.**
+Sequenced so each phase shipped standalone value and unblocked the next.
+Effort buckets: **S** = a few days · **M** = ~1 week · **L** = 2-3 weeks.
+
+## Completion snapshot
+
+| Phase | Theme | Status |
+|---|---|---|
+| 1 | Foundations & reliability | ✅ metric store · retry/dead-letter · watchdog · tests |
+| 2 | Data trust (cross-source) | ✅ DeFiLlama divergence checks (hourly) |
+| 3 | Smarter detection | ✅ adaptive z-score anomalies · exposure weighting · compound rules |
+| 4 | Core risk primitives | ✅ depeg + oracle deviation; bad-debt / at-risk / wallet-concentration documented as data-gated (see ONBOARD_A_DASHBOARD.md) |
+| 5 | Operational workflow | ✅ ack/mute/false-positive/notes · escalation · drill-down · SLA |
+| 6 | Console polish | ✅ live refresh · metrics explorer (baseline bands) · detector mute · mobile |
+| 7 | Tuning & coverage | ✅ backtest · coverage map · runbooks |
+
+Live workflows: `setnel-ping` (5m) · `setnel-analyze` (30m) · `setnel-crosscheck` (1h) · `setnel-watchdog` (15m).
+Wired dashboards: Aave V3 (12 detectors), State of SUI (6 detectors / 5 protocols).
+
+Remaining (non-roadmap, tracked elsewhere): rotate Neon password; onboard the
+3 colleague dashboards; unlock data-gated primitives when dashboards expose
+per-wallet health factors / per-asset prices.
+
+The sections below are the original plan, kept for reference.
 
 Guiding principle: **trust, then signal, then workflow.** A risk tool is only
 worth acting on if (a) the data is verified, (b) the detection is meaningful,
