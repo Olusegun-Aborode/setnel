@@ -26,6 +26,14 @@ export async function ingestBatch(
   let incidentsOpened = 0;
   let notified = 0;
 
+  // Detector-level mutes for this dashboard (alert fatigue control).
+  const mutedDetectors = new Set(
+    ((await sql`
+      SELECT detector_id FROM detector_mutes
+      WHERE dashboard_id = ${dashboard.id} AND muted_until > now()
+    `) as { detector_id: string }[]).map((r) => r.detector_id),
+  );
+
   for (const ev of events) {
     const fingerprint = ev.fingerprint ?? `${ev.detectorId}`;
     const severity = ev.severity as Severity;
@@ -100,8 +108,9 @@ export async function ingestBatch(
     stored += 1;
 
     // Telegram routing: data alerts only, and only when fresh/escalated.
-    // info severity never pages; technical category never pages.
-    if (shouldNotify && severity !== 'info' && !isTechnical(ev.category)) {
+    // info severity never pages; technical category never pages; muted
+    // detectors never page (but the incident is still recorded above).
+    if (shouldNotify && severity !== 'info' && !isTechnical(ev.category) && !mutedDetectors.has(ev.detectorId)) {
       const deepLink = buildDeepLink(dashboard.base_url, linkPath, incidentId);
       const sent = await notifyTelegram({
         dashboardName: dashboard.name,

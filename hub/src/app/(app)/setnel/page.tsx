@@ -10,10 +10,12 @@ import {
   HEALTH_EXPECTED_PER_DAY,
   type Filters,
   type DashboardHealth,
+  type IncidentWithDashboard,
 } from '@/lib/queries';
 import { buildDeepLink } from '@/lib/ingest';
 import { TrendChart } from './trend-chart';
 import { acknowledgeIncident, muteIncident, markFalsePositive, setActor } from './actions';
+import { LiveRefresh } from './live';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +72,8 @@ export default async function SetnelConsole({
   const healthy = health.filter((h) => h.status === 'healthy').length;
   const collectingToday = health.filter((h) => h.checksToday > 0).length;
   const actorName = (await cookies()).get('setnel_actor')?.value ?? '';
+  const activeIncidents = incidents.filter((i) => i.status === 'active');
+  const resolvedIncidents = incidents.filter((i) => i.status === 'resolved');
 
   return (
     <div className="page">
@@ -81,6 +85,8 @@ export default async function SetnelConsole({
           <span className="brand-sub">by Datum Labs · Risk Monitoring</span>
         </div>
         <div className="topbar-right">
+          <LiveRefresh intervalMs={30000} />
+          <a className="ghost-btn" href="/setnel/metrics">Metrics</a>
           <form action={setActor} className="actor-form">
             <input className="actor-input" name="name" defaultValue={actorName} placeholder="your name" maxLength={40} />
             <button className="ghost-btn" type="submit">Set</button>
@@ -176,49 +182,60 @@ export default async function SetnelConsole({
         </nav>
 
         <ul className="feed">
-          {incidents.length === 0 ? (
-            <li className="empty">No incidents match these filters.</li>
+          {activeIncidents.length === 0 ? (
+            <li className="empty">No active incidents. 🟢</li>
           ) : (
-            incidents.map((i) => {
-              const muted = i.muted_until && new Date(i.muted_until).getTime() > Date.now();
-              return (
-                <li key={i.id} className={`card ${SEVERITY_CLASS[i.severity] ?? ''}`}>
-                  <div className="card-main">
-                    <div className="card-top">
-                      <span className="card-dash">{i.dashboard_name}</span>
-                      <span className={`badge ${SEVERITY_CLASS[i.severity] ?? ''}`}>{i.severity}</span>
-                      {i.status === 'resolved' ? <span className="badge badge-resolved">resolved</span> : null}
-                      {i.acknowledged_at ? <span className="badge badge-resolved">ack {i.acknowledged_by}</span> : null}
-                      {muted ? <span className="badge badge-count">muted</span> : null}
-                      {i.false_positive ? <span className="badge badge-exp">false positive</span> : null}
-                      {i.event_count > 1 ? <span className="badge badge-count">×{i.event_count}</span> : null}
-                      {i.exposure_usd ? <span className="badge badge-exp">{fmtExposure(i.exposure_usd)} at risk</span> : null}
-                    </div>
-                    <a className="card-msg card-link" href={`/setnel/incident/${i.id}`}>{i.message}</a>
-                    <div className="card-meta">
-                      <span>{i.detector_id}</span>
-                      <span>·</span>
-                      <span>{timeAgo(i.last_event_at)}</span>
-                      <span>·</span>
-                      <a href={`/setnel/incident/${i.id}`} className="card-detail">details →</a>
-                    </div>
-                  </div>
-                  {i.status === 'active' ? (
-                    <div className="card-actions">
-                      {!i.acknowledged_at ? (
-                        <form action={acknowledgeIncident}><input type="hidden" name="id" value={i.id} /><button className="act act-primary">Ack</button></form>
-                      ) : null}
-                      <form action={muteIncident}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="minutes" value="60" /><button className="act">Mute</button></form>
-                      <form action={markFalsePositive}><input type="hidden" name="id" value={i.id} /><button className="act act-danger">FP</button></form>
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })
+            activeIncidents.map((i) => <IncidentCard key={i.id} i={i} />)
           )}
         </ul>
+
+        {resolvedIncidents.length > 0 ? (
+          <details className="resolved-disclosure">
+            <summary>Resolved ({resolvedIncidents.length})</summary>
+            <ul className="feed" style={{ marginTop: 10 }}>
+              {resolvedIncidents.map((i) => <IncidentCard key={i.id} i={i} />)}
+            </ul>
+          </details>
+        ) : null}
       </section>
     </div>
+  );
+}
+
+function IncidentCard({ i }: { i: IncidentWithDashboard }) {
+  const muted = i.muted_until && new Date(i.muted_until).getTime() > Date.now();
+  return (
+    <li className={`card ${SEVERITY_CLASS[i.severity] ?? ''}`}>
+      <div className="card-main">
+        <div className="card-top">
+          <span className="card-dash">{i.dashboard_name}</span>
+          <span className={`badge ${SEVERITY_CLASS[i.severity] ?? ''}`}>{i.severity}</span>
+          {i.status === 'resolved' ? <span className="badge badge-resolved">resolved</span> : null}
+          {i.acknowledged_at ? <span className="badge badge-resolved">ack {i.acknowledged_by}</span> : null}
+          {muted ? <span className="badge badge-count">muted</span> : null}
+          {i.false_positive ? <span className="badge badge-exp">false positive</span> : null}
+          {i.event_count > 1 ? <span className="badge badge-count">×{i.event_count}</span> : null}
+          {i.exposure_usd ? <span className="badge badge-exp">{fmtExposure(i.exposure_usd)} at risk</span> : null}
+        </div>
+        <a className="card-msg card-link" href={`/setnel/incident/${i.id}`}>{i.message}</a>
+        <div className="card-meta">
+          <span>{i.detector_id}</span>
+          <span>·</span>
+          <span>{timeAgo(i.last_event_at)}</span>
+          <span>·</span>
+          <a href={`/setnel/incident/${i.id}`} className="card-detail">details →</a>
+        </div>
+      </div>
+      {i.status === 'active' ? (
+        <div className="card-actions">
+          {!i.acknowledged_at ? (
+            <form action={acknowledgeIncident}><input type="hidden" name="id" value={i.id} /><button className="act act-primary">Ack</button></form>
+          ) : null}
+          <form action={muteIncident}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="minutes" value="60" /><button className="act">Mute</button></form>
+          <form action={markFalsePositive}><input type="hidden" name="id" value={i.id} /><button className="act act-danger">FP</button></form>
+        </div>
+      ) : null}
+    </li>
   );
 }
 

@@ -108,3 +108,13 @@ CREATE TABLE IF NOT EXISTS incident_notes (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS incident_notes_incident_idx ON incident_notes (incident_id, created_at);
+
+-- Phase 6 — alert fatigue: mute a whole detector (across all its incidents)
+-- until a time. Notifications suppressed; incidents still recorded.
+CREATE TABLE IF NOT EXISTS detector_mutes (
+  dashboard_id TEXT NOT NULL,
+  detector_id  TEXT NOT NULL,
+  muted_until  TIMESTAMPTZ NOT NULL,
+  muted_by     TEXT,
+  PRIMARY KEY (dashboard_id, detector_id)
+);

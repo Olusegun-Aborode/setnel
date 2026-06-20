@@ -84,6 +84,51 @@ export async function getIncident(id: string): Promise<IncidentDetail | null> {
   return { incident, events, notes, metric };
 }
 
+// ── Metrics explorer (per-metric series + baseline band) ───────────────
+export type MetricSeries = {
+  dashboardId: string;
+  dashboardName: string;
+  metricKey: string;
+  points: { ts: string; value: number }[]; // oldest → newest, dashboard source
+  mean: number;
+  stddev: number;
+  latest: number;
+};
+
+export async function getMetricsOverview(limitPerMetric = 200): Promise<MetricSeries[]> {
+  const metrics = (await sql`
+    SELECT DISTINCT m.dashboard_id, m.metric_key, d.name AS dashboard_name
+    FROM metric_samples m JOIN dashboards d ON d.id = m.dashboard_id
+    WHERE m.source = 'dashboard' AND d.enabled = true
+    ORDER BY m.dashboard_id, m.metric_key
+  `) as { dashboard_id: string; metric_key: string; dashboard_name: string }[];
+
+  const out: MetricSeries[] = [];
+  for (const m of metrics) {
+    const rows = (await sql`
+      SELECT to_char(ts, 'YYYY-MM-DD"T"HH24:MI') AS ts, value
+      FROM metric_samples
+      WHERE dashboard_id = ${m.dashboard_id} AND metric_key = ${m.metric_key} AND source = 'dashboard'
+      ORDER BY ts DESC LIMIT ${limitPerMetric}
+    `) as { ts: string; value: number }[];
+    if (rows.length < 2) continue;
+    const points = rows.reverse();
+    const vals = points.map((p) => p.value);
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const variance = vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length;
+    out.push({
+      dashboardId: m.dashboard_id,
+      dashboardName: m.dashboard_name,
+      metricKey: m.metric_key,
+      points,
+      mean,
+      stddev: Math.sqrt(variance),
+      latest: vals[vals.length - 1],
+    });
+  }
+  return out;
+}
+
 // ── SLA / response metrics ─────────────────────────────────────────────
 export type Sla = {
   ackRatePct: number;

@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
 import { getIncident, type MetricPoint } from '@/lib/queries';
 import { buildDeepLink } from '@/lib/ingest';
-import { acknowledgeIncident, muteIncident, markFalsePositive, resolveIncident, addNote } from '../../actions';
+import { acknowledgeIncident, muteIncident, markFalsePositive, resolveIncident, addNote, muteDetector } from '../../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,6 +69,13 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
               <form action={markFalsePositive}><input type="hidden" name="id" value={i.id} /><button className="act act-danger">False positive</button></form>
             </>
           ) : null}
+          <form action={muteDetector}>
+            <input type="hidden" name="id" value={i.id} />
+            <input type="hidden" name="dashboardId" value={i.dashboard_id} />
+            <input type="hidden" name="detectorId" value={i.detector_id} />
+            <input type="hidden" name="minutes" value="1440" />
+            <button className="act" title={`Silence all ${i.detector_id} alerts for 24h`}>Mute detector 24h</button>
+          </form>
           <a className="act" href={deepLink} target="_blank" rel="noreferrer">Open dashboard ↗</a>
         </div>
       </section>

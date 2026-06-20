@@ -66,6 +66,22 @@ export async function resolveIncident(formData: FormData) {
   revalidatePath(`/setnel/incident/${id}`);
 }
 
+export async function muteDetector(formData: FormData) {
+  await guard();
+  const dashboardId = String(formData.get('dashboardId'));
+  const detectorId = String(formData.get('detectorId'));
+  const minutes = Math.max(60, Math.min(43200, Number(formData.get('minutes') ?? 1440)));
+  const who = await actor();
+  await sql`
+    INSERT INTO detector_mutes (dashboard_id, detector_id, muted_until, muted_by)
+    VALUES (${dashboardId}, ${detectorId}, now() + (${minutes} || ' minutes')::interval, ${who})
+    ON CONFLICT (dashboard_id, detector_id)
+    DO UPDATE SET muted_until = EXCLUDED.muted_until, muted_by = EXCLUDED.muted_by
+  `;
+  revalidatePath('/setnel');
+  revalidatePath(`/setnel/incident/${formData.get('id')}`);
+}
+
 export async function addNote(formData: FormData) {
   await guard();
   const id = String(formData.get('id'));

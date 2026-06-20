@@ -239,8 +239,40 @@ h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
 .tl-note { border-left-color: var(--info) !important; }
 .tl-time { color: var(--faint); font-family: var(--mono); font-size: 12px; margin-right: 8px; }
 
+/* ── Live refresh ── */
+.live-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #fff; border: 1px solid var(--border-strong); border-radius: 7px;
+  padding: 6px 10px; font-size: 12.5px; color: var(--muted); cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.live-on { color: var(--ink); border-color: var(--ink); }
+.live-on .live-dot { background: var(--good); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* ── Resolved disclosure ── */
+.resolved-disclosure { margin-top: 14px; }
+.resolved-disclosure summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 6px 0; }
+.resolved-disclosure summary:hover { color: var(--ink); }
+
+/* ── Metrics explorer ── */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.metric-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.metric-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.metric-key { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.metric-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+.metric-svg { width: 100%; height: 84px; display: block; }
+
 @media (max-width: 820px) {
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .matrix-row { grid-template-columns: 130px 1fr; }
   .m-last, .m-today, .m-daylabel { display: none; }
+  .topbar { flex-wrap: wrap; gap: 10px; }
+  .topbar-right { flex-wrap: wrap; }
+  .sla { gap: 14px; }
+  .sla-note { margin-left: 0; }
+  .card { flex-direction: column; }
+  .card-actions { align-self: flex-start; }
+  .metric-grid { grid-template-columns: 1fr; }
 }
