@@ -83,7 +83,11 @@ export default async function SetnelConsole({
         />
         <Kpi label="Healthy" value={`${healthy}/${health.length}`} sub="< 24h since last check" tone={healthy === health.length ? 'good' : 'warn'} />
         <Kpi label="Active incidents" value={String(summary.activeCount)} sub="open now" tone={summary.activeCount === 0 ? 'good' : 'warn'} />
-        <Kpi label="Critical" value={String(summary.criticalActive)} sub="active" tone={summary.criticalActive === 0 ? 'good' : 'bad'} />
+        {summary.failedNotifications > 0 ? (
+          <Kpi label="Delivery failures" value={String(summary.failedNotifications)} sub="undelivered alerts" tone="bad" />
+        ) : (
+          <Kpi label="Critical" value={String(summary.criticalActive)} sub="active" tone={summary.criticalActive === 0 ? 'good' : 'bad'} />
+        )}
       </section>
 
       {/* Trend — filterable by dashboard / category / protocol */}

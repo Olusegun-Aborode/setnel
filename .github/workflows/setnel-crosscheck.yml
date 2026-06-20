@@ -1,0 +1,28 @@
+name: setnel-crosscheck
+# Phase 2 — cross-source verification. Hourly, asks the Hub to compare each
+# dashboard's reported metrics against an independent source (DeFiLlama) and
+# raise a data-integrity incident on divergence. Catches dashboards serving
+# wrong/stale data (the SparkLend utilization-bug class). TVL moves slowly, so
+# hourly is plenty and keeps DeFiLlama calls light.
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: setnel-crosscheck
+  cancel-in-progress: false
+
+jobs:
+  crosscheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger cross-check
+        run: |
+          code=$(curl -s -o /tmp/out.json -w '%{http_code}' --max-time 90 \
+            "https://setnel.datumlab.xyz/api/v1/crosscheck?key=${{ secrets.SETNEL_CRON_SECRET }}")
+          echo "status: $code"
+          cat /tmp/out.json
+          test "$code" = "200"

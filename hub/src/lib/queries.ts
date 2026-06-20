@@ -40,6 +40,7 @@ export type Summary = {
   activeCount: number;
   criticalActive: number;
   last24h: number;
+  failedNotifications: number;
   dashboards: { id: string; name: string }[];
 };
 
@@ -47,11 +48,13 @@ export async function getSummary(): Promise<Summary> {
   const active = (await sql`SELECT count(*)::int AS n FROM incidents WHERE status = 'active'`) as { n: number }[];
   const crit = (await sql`SELECT count(*)::int AS n FROM incidents WHERE status = 'active' AND severity IN ('critical','emergency')`) as { n: number }[];
   const day = (await sql`SELECT count(*)::int AS n FROM incidents WHERE opened_at > now() - interval '24 hours'`) as { n: number }[];
+  const dl = (await sql`SELECT count(*)::int AS n FROM failed_notifications WHERE resolved_at IS NULL`) as { n: number }[];
   const dash = (await sql`SELECT id, name FROM dashboards WHERE enabled = true ORDER BY name`) as { id: string; name: string }[];
   return {
     activeCount: active[0]?.n ?? 0,
     criticalActive: crit[0]?.n ?? 0,
     last24h: day[0]?.n ?? 0,
+    failedNotifications: dl[0]?.n ?? 0,
     dashboards: dash,
   };
 }
