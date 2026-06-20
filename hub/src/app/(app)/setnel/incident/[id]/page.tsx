@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
 import { getIncident, type MetricPoint } from '@/lib/queries';
+import { getRunbook } from '@/lib/runbooks';
 import { buildDeepLink } from '@/lib/ingest';
 import { acknowledgeIncident, muteIncident, markFalsePositive, resolveIncident, addNote, muteDetector } from '../../actions';
 
@@ -28,6 +29,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
   const { incident: i, events, notes, metric } = detail;
   const deepLink = buildDeepLink(i.base_url, i.link_path, String(i.id));
   const muted = i.muted_until && new Date(i.muted_until).getTime() > Date.now();
+  const runbook = getRunbook(i.detector_id, events[0]?.category ?? '');
 
   return (
     <div className="page">
@@ -79,6 +81,14 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
           <a className="act" href={deepLink} target="_blank" rel="noreferrer">Open dashboard ↗</a>
         </div>
       </section>
+
+      {runbook ? (
+        <section className="panel">
+          <div className="panel-head"><h2>Runbook · {runbook.title}</h2><a className="card-detail" href="/setnel/runbooks">all runbooks →</a></div>
+          <div className="runbook-when">{runbook.when}</div>
+          <ol className="runbook-steps">{runbook.steps.map((s, n) => <li key={n}>{s}</li>)}</ol>
+        </section>
+      ) : null}
 
       {metric && metric.points.length > 1 ? (
         <section className="panel">

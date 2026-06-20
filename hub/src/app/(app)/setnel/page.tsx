@@ -87,6 +87,9 @@ export default async function SetnelConsole({
         <div className="topbar-right">
           <LiveRefresh intervalMs={30000} />
           <a className="ghost-btn" href="/setnel/metrics">Metrics</a>
+          <a className="ghost-btn" href="/setnel/coverage">Coverage</a>
+          <a className="ghost-btn" href="/setnel/backtest">Backtest</a>
+          <a className="ghost-btn" href="/setnel/runbooks">Runbooks</a>
           <form action={setActor} className="actor-form">
             <input className="actor-input" name="name" defaultValue={actorName} placeholder="your name" maxLength={40} />
             <button className="ghost-btn" type="submit">Set</button>
