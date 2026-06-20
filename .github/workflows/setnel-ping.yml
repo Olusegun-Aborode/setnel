@@ -26,6 +26,7 @@ jobs:
         run: |
           CRON_URLS=(
             "https://aave-dashboard.vercel.app/api/setnel/cron"
+            "https://datumlabs-defi-dashboard.vercel.app/navi/api/setnel/cron"
           )
           fail=0
           for url in "${CRON_URLS[@]}"; do
