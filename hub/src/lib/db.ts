@@ -39,6 +39,11 @@ export type IncidentRow = {
   event_count: number;
   notified_at: string | null;
   exposure_usd: number | null;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  muted_until: string | null;
+  false_positive: boolean;
+  resolved_by: string | null;
 };
 
 export type Severity = 'info' | 'warning' | 'critical' | 'emergency';

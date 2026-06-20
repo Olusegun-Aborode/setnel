@@ -92,3 +92,19 @@ CREATE INDEX IF NOT EXISTS failed_notifications_open_idx ON failed_notifications
 -- ── Migrations (idempotent; CREATE TABLE IF NOT EXISTS won't alter existing) ──
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS exposure_usd DOUBLE PRECISION;
 CREATE INDEX IF NOT EXISTS incidents_exposure_idx ON incidents (exposure_usd DESC NULLS LAST);
+
+-- Phase 5 — operational workflow: human actions on incidents.
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS acknowledged_at TIMESTAMPTZ;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS acknowledged_by TEXT;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS muted_until    TIMESTAMPTZ;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS false_positive BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS resolved_by    TEXT;
+
+CREATE TABLE IF NOT EXISTS incident_notes (
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  incident_id BIGINT NOT NULL REFERENCES incidents(id),
+  author      TEXT NOT NULL,
+  body        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS incident_notes_incident_idx ON incident_notes (incident_id, created_at);

@@ -1,16 +1,19 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { isAuthed } from '@/lib/session';
 import {
   getIncidents,
   getSummary,
   getHealthMatrix,
   getChartBundle,
+  getSla,
   HEALTH_EXPECTED_PER_DAY,
   type Filters,
   type DashboardHealth,
 } from '@/lib/queries';
 import { buildDeepLink } from '@/lib/ingest';
 import { TrendChart } from './trend-chart';
+import { acknowledgeIncident, muteIncident, markFalsePositive, setActor } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,15 +59,17 @@ export default async function SetnelConsole({
     sinceHours: sp.since ? Number(sp.since) : undefined,
   };
 
-  const [incidents, summary, health, bundle] = await Promise.all([
+  const [incidents, summary, health, bundle, sla] = await Promise.all([
     getIncidents(filters),
     getSummary(),
     getHealthMatrix(),
     getChartBundle(30),
+    getSla(30),
   ]);
 
   const healthy = health.filter((h) => h.status === 'healthy').length;
   const collectingToday = health.filter((h) => h.checksToday > 0).length;
+  const actorName = (await cookies()).get('setnel_actor')?.value ?? '';
 
   return (
     <div className="page">
@@ -75,9 +80,15 @@ export default async function SetnelConsole({
           <span className="brand-name">Setnel</span>
           <span className="brand-sub">by Datum Labs · Risk Monitoring</span>
         </div>
-        <form action="/login/logout" method="post">
-          <button className="ghost-btn" type="submit">Sign out</button>
-        </form>
+        <div className="topbar-right">
+          <form action={setActor} className="actor-form">
+            <input className="actor-input" name="name" defaultValue={actorName} placeholder="your name" maxLength={40} />
+            <button className="ghost-btn" type="submit">Set</button>
+          </form>
+          <form action="/login/logout" method="post">
+            <button className="ghost-btn" type="submit">Sign out</button>
+          </form>
+        </div>
       </header>
 
       {/* KPI strip */}
@@ -96,6 +107,15 @@ export default async function SetnelConsole({
         ) : (
           <Kpi label="Critical" value={String(summary.criticalActive)} sub="active" tone={summary.criticalActive === 0 ? 'good' : 'bad'} />
         )}
+      </section>
+
+      {/* SLA / response metrics */}
+      <section className="sla">
+        <span className="sla-item"><b>{sla.ackRatePct}%</b> acknowledged</span>
+        <span className="sla-item"><b>{sla.avgTimeToAckMin == null ? '—' : sla.avgTimeToAckMin + 'm'}</b> avg time to ack</span>
+        <span className="sla-item"><b>{sla.avgTimeToResolveMin == null ? '—' : sla.avgTimeToResolveMin + 'm'}</b> avg time to resolve</span>
+        <span className="sla-item"><b>{sla.falsePositivePct}%</b> false positives</span>
+        <span className="sla-note">last 30 days · {sla.total} incidents</span>
       </section>
 
       {/* Trend — filterable by dashboard / category / protocol */}
@@ -160,7 +180,7 @@ export default async function SetnelConsole({
             <li className="empty">No incidents match these filters.</li>
           ) : (
             incidents.map((i) => {
-              const deepLink = buildDeepLink(i.base_url, i.link_path, String(i.id));
+              const muted = i.muted_until && new Date(i.muted_until).getTime() > Date.now();
               return (
                 <li key={i.id} className={`card ${SEVERITY_CLASS[i.severity] ?? ''}`}>
                   <div className="card-main">
@@ -168,17 +188,30 @@ export default async function SetnelConsole({
                       <span className="card-dash">{i.dashboard_name}</span>
                       <span className={`badge ${SEVERITY_CLASS[i.severity] ?? ''}`}>{i.severity}</span>
                       {i.status === 'resolved' ? <span className="badge badge-resolved">resolved</span> : null}
+                      {i.acknowledged_at ? <span className="badge badge-resolved">ack {i.acknowledged_by}</span> : null}
+                      {muted ? <span className="badge badge-count">muted</span> : null}
+                      {i.false_positive ? <span className="badge badge-exp">false positive</span> : null}
                       {i.event_count > 1 ? <span className="badge badge-count">×{i.event_count}</span> : null}
                       {i.exposure_usd ? <span className="badge badge-exp">{fmtExposure(i.exposure_usd)} at risk</span> : null}
                     </div>
-                    <div className="card-msg">{i.message}</div>
+                    <a className="card-msg card-link" href={`/setnel/incident/${i.id}`}>{i.message}</a>
                     <div className="card-meta">
                       <span>{i.detector_id}</span>
                       <span>·</span>
                       <span>{timeAgo(i.last_event_at)}</span>
+                      <span>·</span>
+                      <a href={`/setnel/incident/${i.id}`} className="card-detail">details →</a>
                     </div>
                   </div>
-                  <a className="card-open" href={deepLink} target="_blank" rel="noreferrer">Open ↗</a>
+                  {i.status === 'active' ? (
+                    <div className="card-actions">
+                      {!i.acknowledged_at ? (
+                        <form action={acknowledgeIncident}><input type="hidden" name="id" value={i.id} /><button className="act act-primary">Ack</button></form>
+                      ) : null}
+                      <form action={muteIncident}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="minutes" value="60" /><button className="act">Mute</button></form>
+                      <form action={markFalsePositive}><input type="hidden" name="id" value={i.id} /><button className="act act-danger">FP</button></form>
+                    </div>
+                  ) : null}
                 </li>
               );
             })

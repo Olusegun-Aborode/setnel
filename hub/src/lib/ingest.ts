@@ -2,8 +2,12 @@ import { sql, SEVERITY_RANK, type DashboardRow, type IncidentRow, type Severity 
 import { isTechnical, notifyTelegram } from './notify';
 import type { IncomingEvent } from './types';
 
-// Re-notify the same active incident at most this often, even if it keeps firing.
-const RENOTIFY_AFTER_MS = 6 * 60 * 60 * 1000; // 6h
+// Re-notify cadence for an UNACKNOWLEDGED incident that keeps firing. Critical/
+// emergency nag hourly (escalation pressure until someone acks); lower severities
+// every 6h. Once acknowledged, we don't re-notify unless the severity escalates.
+const RENOTIFY_ACKED_MS = Infinity; // acked → silent (until escalation)
+const RENOTIFY_URGENT_MS = 60 * 60 * 1000; // 1h for critical/emergency
+const RENOTIFY_NORMAL_MS = 6 * 60 * 60 * 1000; // 6h otherwise
 
 type IngestResult = { stored: number; incidentsOpened: number; notified: number };
 
@@ -58,10 +62,19 @@ export async function ingestBatch(
       const inc = existing[0];
       incidentId = inc.id;
       const escalated = SEVERITY_RANK[severity] > SEVERITY_RANK[inc.severity];
+
+      // Muted → never notify until the mute expires (regardless of escalation).
+      const muted = inc.muted_until && new Date(inc.muted_until).getTime() > Date.now();
+      // Acknowledged → someone's on it; only ping again if severity escalates.
+      const acked = Boolean(inc.acknowledged_at);
+      const window = acked
+        ? RENOTIFY_ACKED_MS
+        : SEVERITY_RANK[severity] >= SEVERITY_RANK.critical
+          ? RENOTIFY_URGENT_MS
+          : RENOTIFY_NORMAL_MS;
       const stale =
-        !inc.notified_at ||
-        Date.now() - new Date(inc.notified_at).getTime() > RENOTIFY_AFTER_MS;
-      shouldNotify = escalated || stale;
+        !inc.notified_at || Date.now() - new Date(inc.notified_at).getTime() > window;
+      shouldNotify = !muted && (escalated || stale);
 
       const newSeverity = escalated ? severity : inc.severity;
       await sql`

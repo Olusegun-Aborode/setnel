@@ -38,6 +38,82 @@ export async function getIncidents(f: Filters = {}): Promise<IncidentWithDashboa
   return rows;
 }
 
+// ── Single incident drill-down ─────────────────────────────────────────
+export type IncidentEvent = { id: string; message: string; severity: string; category: string; payload: unknown; fired_at: string };
+export type IncidentNote = { id: string; author: string; body: string; created_at: string };
+export type MetricPoint = { ts: string; value: number; source: string };
+export type IncidentDetail = {
+  incident: IncidentWithDashboard;
+  events: IncidentEvent[];
+  notes: IncidentNote[];
+  metric?: { key: string; points: MetricPoint[] };
+};
+
+export async function getIncident(id: string): Promise<IncidentDetail | null> {
+  const rows = (await sql`
+    SELECT i.*, d.name AS dashboard_name, d.protocol_slug, d.base_url
+    FROM incidents i JOIN dashboards d ON d.id = i.dashboard_id
+    WHERE i.id = ${id} LIMIT 1
+  `) as IncidentWithDashboard[];
+  if (rows.length === 0) return null;
+  const incident = rows[0];
+
+  const events = (await sql`
+    SELECT id, message, severity, category, payload, fired_at
+    FROM events WHERE incident_id = ${id} ORDER BY fired_at DESC LIMIT 100
+  `) as IncidentEvent[];
+
+  const notes = (await sql`
+    SELECT id, author, body, created_at FROM incident_notes
+    WHERE incident_id = ${id} ORDER BY created_at ASC
+  `) as IncidentNote[];
+
+  // If the incident's events carry a metricKey, pull that metric's recent series.
+  let metric: IncidentDetail['metric'];
+  const mk = (events.find((e) => (e.payload as { metricKey?: string })?.metricKey)?.payload as { metricKey?: string })?.metricKey;
+  if (mk) {
+    const points = (await sql`
+      SELECT to_char(ts, 'YYYY-MM-DD"T"HH24:MI') AS ts, value, source
+      FROM metric_samples
+      WHERE dashboard_id = ${incident.dashboard_id} AND metric_key = ${mk}
+      ORDER BY ts DESC LIMIT 200
+    `) as MetricPoint[];
+    metric = { key: mk, points: points.reverse() };
+  }
+
+  return { incident, events, notes, metric };
+}
+
+// ── SLA / response metrics ─────────────────────────────────────────────
+export type Sla = {
+  ackRatePct: number;
+  avgTimeToAckMin: number | null;
+  avgTimeToResolveMin: number | null;
+  falsePositivePct: number;
+  total: number;
+};
+
+export async function getSla(days = 30): Promise<Sla> {
+  const r = (await sql`
+    SELECT
+      count(*)::int AS total,
+      count(*) FILTER (WHERE acknowledged_at IS NOT NULL)::int AS acked,
+      count(*) FILTER (WHERE false_positive)::int AS fp,
+      avg(EXTRACT(EPOCH FROM (acknowledged_at - opened_at))) FILTER (WHERE acknowledged_at IS NOT NULL) AS ack_s,
+      avg(EXTRACT(EPOCH FROM (resolved_at - opened_at))) FILTER (WHERE resolved_at IS NOT NULL) AS res_s
+    FROM incidents
+    WHERE opened_at > now() - (${days} || ' days')::interval
+  `) as { total: number; acked: number; fp: number; ack_s: number | null; res_s: number | null }[];
+  const x = r[0];
+  return {
+    total: x?.total ?? 0,
+    ackRatePct: x?.total ? Math.round((x.acked / x.total) * 100) : 0,
+    avgTimeToAckMin: x?.ack_s != null ? Math.round(x.ack_s / 60) : null,
+    avgTimeToResolveMin: x?.res_s != null ? Math.round(x.res_s / 60) : null,
+    falsePositivePct: x?.total ? Math.round((x.fp / x.total) * 100) : 0,
+  };
+}
+
 export type Summary = {
   activeCount: number;
   criticalActive: number;
