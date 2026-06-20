@@ -167,6 +167,32 @@ the Setnel console health matrix and fires alerts to Telegram.
 
 ---
 
+## Data your API should expose for the advanced (Phase 4) detectors
+
+The basic detectors work off TVL / utilization / borrows. The high-value risk
+primitives need specific fields. Expose these from your API and the matching
+detector becomes possible (copy the pattern from the Aave detectors):
+
+| Detector | Needs your API to expose |
+|---|---|
+| **Stablecoin depeg** | per-asset price (the price your protocol reads), per reserve/pool |
+| **Oracle deviation** | per-asset price + token **address** + chain (so we compare to DeFiLlama by address) |
+| **Bad debt** | per-wallet/position **health factor** (positions with HF < 1) |
+| **At-risk liquidations** | per-position collateral $ + current HF or distance to liquidation threshold |
+| **Wallet concentration** | top borrowers/suppliers with their $ amounts |
+
+If your endpoints don't expose these yet, add the fields — usually already
+available from your indexer/SDK, just not surfaced. Until then those detectors
+are simply skipped (never fabricated data).
+
+Set `payload.exposureUsd` on any event where you know the dollars at risk
+(a pool's supply, a market's TVL) — the console ranks the feed by it.
+
+A note on metric samples: add a `sample(data)` function to a detector to report
+metric values every run (see Aave/SUI). This feeds the Hub's time-series, which
+powers adaptive anomaly detection, cross-source verification, and charts — your
+dashboard gets those for free once it's sampling.
+
 ## What the maintainer does on their end (reference)
 
 1. `INSERT` the dashboard row + `SETNEL_DASHBOARD_SECRET_<ID>` on the Hub, redeploy Hub.
