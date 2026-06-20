@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS incidents (
   resolved_at   TIMESTAMPTZ,
   last_event_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   event_count   INTEGER NOT NULL DEFAULT 1,
-  notified_at   TIMESTAMPTZ                       -- last time we pinged Telegram
+  notified_at   TIMESTAMPTZ,                      -- last time we pinged Telegram
+  exposure_usd  DOUBLE PRECISION                  -- $ at risk, for ranking (nullable)
 );
 CREATE INDEX IF NOT EXISTS incidents_active_idx ON incidents (status, dashboard_id) WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS incidents_fingerprint_idx ON incidents (fingerprint);
@@ -87,3 +88,7 @@ CREATE TABLE IF NOT EXISTS failed_notifications (
   resolved_at  TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS failed_notifications_open_idx ON failed_notifications (created_at DESC) WHERE resolved_at IS NULL;
+
+-- ── Migrations (idempotent; CREATE TABLE IF NOT EXISTS won't alter existing) ──
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS exposure_usd DOUBLE PRECISION;
+CREATE INDEX IF NOT EXISTS incidents_exposure_idx ON incidents (exposure_usd DESC NULLS LAST);

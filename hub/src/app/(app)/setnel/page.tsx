@@ -21,6 +21,14 @@ const SEVERITY_CLASS: Record<string, string> = {
   emergency: 'sev-emergency',
 };
 
+function fmtExposure(n: number): string {
+  const a = Math.abs(n);
+  if (a >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (a >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+  return `$${n.toFixed(0)}`;
+}
+
 function timeAgo(iso: string | null): string {
   if (!iso) return 'never';
   const ms = Date.now() - new Date(iso).getTime();
@@ -161,6 +169,7 @@ export default async function SetnelConsole({
                       <span className={`badge ${SEVERITY_CLASS[i.severity] ?? ''}`}>{i.severity}</span>
                       {i.status === 'resolved' ? <span className="badge badge-resolved">resolved</span> : null}
                       {i.event_count > 1 ? <span className="badge badge-count">×{i.event_count}</span> : null}
+                      {i.exposure_usd ? <span className="badge badge-exp">{fmtExposure(i.exposure_usd)} at risk</span> : null}
                     </div>
                     <div className="card-msg">{i.message}</div>
                     <div className="card-meta">

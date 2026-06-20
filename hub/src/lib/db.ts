@@ -38,6 +38,7 @@ export type IncidentRow = {
   last_event_at: string;
   event_count: number;
   notified_at: string | null;
+  exposure_usd: number | null;
 };
 
 export type Severity = 'info' | 'warning' | 'critical' | 'emergency';

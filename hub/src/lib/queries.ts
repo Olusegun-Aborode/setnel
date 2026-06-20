@@ -14,13 +14,15 @@ export type Filters = {
   sinceHours?: number;
 };
 
-/** Incidents for the console, newest first, with dashboard info joined. */
+/** Incidents for the console. Active first, then by severity, then by $ exposure
+ *  (what matters most floats up), then recency. */
 export async function getIncidents(f: Filters = {}): Promise<IncidentWithDashboard[]> {
   const status = f.status ?? 'all';
   const sinceHours = f.sinceHours ?? 24 * 7; // default last 7 days
 
   const rows = (await sql`
-    SELECT i.*, d.name AS dashboard_name, d.protocol_slug, d.base_url
+    SELECT i.*, d.name AS dashboard_name, d.protocol_slug, d.base_url,
+           CASE i.severity WHEN 'emergency' THEN 3 WHEN 'critical' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END AS sev_rank
     FROM incidents i
     JOIN dashboards d ON d.id = i.dashboard_id
     WHERE i.opened_at > now() - (${sinceHours} || ' hours')::interval
@@ -30,7 +32,7 @@ export async function getIncidents(f: Filters = {}): Promise<IncidentWithDashboa
       AND (${f.category ?? null}::text IS NULL OR EXISTS (
             SELECT 1 FROM events e WHERE e.incident_id = i.id AND e.category = ${f.category ?? null}
           ))
-    ORDER BY i.last_event_at DESC
+    ORDER BY (i.status = 'active') DESC, sev_rank DESC, i.exposure_usd DESC NULLS LAST, i.last_event_at DESC
     LIMIT 500
   `) as IncidentWithDashboard[];
   return rows;

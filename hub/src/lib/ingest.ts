@@ -26,6 +26,10 @@ export async function ingestBatch(
     const fingerprint = ev.fingerprint ?? `${ev.detectorId}`;
     const severity = ev.severity as Severity;
     const linkPath = ev.linkPath ?? null;
+    // $ at risk, for ranking the feed. Detectors set payload.exposureUsd where
+    // it's meaningful (a pool's supply, a market's size); null otherwise.
+    const exp = ev.payload?.exposureUsd;
+    const exposureUsd = typeof exp === 'number' && Number.isFinite(exp) ? exp : null;
 
     // Look for an existing active incident with this fingerprint.
     const existing = (await sql`
@@ -42,9 +46,9 @@ export async function ingestBatch(
       // New incident.
       const rows = (await sql`
         INSERT INTO incidents
-          (dashboard_id, detector_id, fingerprint, status, severity, message, link_path, last_event_at, event_count, notified_at)
+          (dashboard_id, detector_id, fingerprint, status, severity, message, link_path, last_event_at, event_count, notified_at, exposure_usd)
         VALUES
-          (${dashboard.id}, ${ev.detectorId}, ${fingerprint}, 'active', ${severity}, ${ev.message}, ${linkPath}, now(), 1, NULL)
+          (${dashboard.id}, ${ev.detectorId}, ${fingerprint}, 'active', ${severity}, ${ev.message}, ${linkPath}, now(), 1, NULL, ${exposureUsd})
         RETURNING id
       `) as { id: string }[];
       incidentId = rows[0].id;
@@ -66,7 +70,8 @@ export async function ingestBatch(
           last_event_at = now(),
           severity = ${newSeverity},
           message = ${ev.message},
-          link_path = ${linkPath}
+          link_path = ${linkPath},
+          exposure_usd = COALESCE(${exposureUsd}, exposure_usd)
         WHERE id = ${incidentId}
       `;
     }
