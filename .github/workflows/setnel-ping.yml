@@ -1,0 +1,42 @@
+name: setnel-ping
+# Triggers each Setnel-wired dashboard to run ITS OWN detectors every 5 minutes.
+#
+# Why this exists: dashboards run on Vercel Hobby, which caps native cron at
+# once/day. This workflow is a dumb HTTP trigger — it just hits each dashboard's
+# /api/setnel/cron route. The detection logic still lives inside each dashboard
+# (per-dashboard detectors); this only provides the 5-minute heartbeat.
+#
+# To add a dashboard: add its cron URL to the CRON_URLS list below.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: setnel-ping
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping dashboard cron routes
+        run: |
+          CRON_URLS=(
+            "https://aave-dashboard.vercel.app/api/setnel/cron"
+          )
+          fail=0
+          for url in "${CRON_URLS[@]}"; do
+            echo "→ $url"
+            body=$(curl -s --max-time 90 -w "\n%{http_code}" "$url" || echo "000")
+            code=$(echo "$body" | tail -1)
+            echo "$body" | sed '$d'
+            echo "   status: $code"
+            if [ "$code" != "200" ]; then fail=1; fi
+            echo ""
+          done
+          # Don't hard-fail the workflow on a single dashboard hiccup — the
+          # Hub's own data still reflects the last good run. Log and move on.
+          if [ "$fail" = "1" ]; then echo "::warning::one or more dashboards did not return 200"; fi
