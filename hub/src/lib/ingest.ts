@@ -1,0 +1,136 @@
+import { sql, SEVERITY_RANK, type DashboardRow, type IncidentRow, type Severity } from './db';
+import { isTechnical, notifyTelegram } from './notify';
+import type { IncomingEvent } from './types';
+
+// Re-notify the same active incident at most this often, even if it keeps firing.
+const RENOTIFY_AFTER_MS = 6 * 60 * 60 * 1000; // 6h
+
+type IngestResult = { stored: number; incidentsOpened: number; notified: number };
+
+/**
+ * Process one dashboard's event batch:
+ *  - dedup against active incidents by fingerprint
+ *  - open or update an incident (state machine)
+ *  - store the raw event
+ *  - fire Telegram for fresh/escalated data alerts (technical stays silent)
+ */
+export async function ingestBatch(
+  dashboard: DashboardRow,
+  events: IncomingEvent[],
+): Promise<IngestResult> {
+  let stored = 0;
+  let incidentsOpened = 0;
+  let notified = 0;
+
+  for (const ev of events) {
+    const fingerprint = ev.fingerprint ?? `${ev.detectorId}`;
+    const severity = ev.severity as Severity;
+    const linkPath = ev.linkPath ?? null;
+
+    // Look for an existing active incident with this fingerprint.
+    const existing = (await sql`
+      SELECT * FROM incidents
+      WHERE fingerprint = ${fingerprint} AND status = 'active'
+      ORDER BY opened_at DESC
+      LIMIT 1
+    `) as IncidentRow[];
+
+    let incidentId: string;
+    let shouldNotify = false;
+
+    if (existing.length === 0) {
+      // New incident.
+      const rows = (await sql`
+        INSERT INTO incidents
+          (dashboard_id, detector_id, fingerprint, status, severity, message, link_path, last_event_at, event_count, notified_at)
+        VALUES
+          (${dashboard.id}, ${ev.detectorId}, ${fingerprint}, 'active', ${severity}, ${ev.message}, ${linkPath}, now(), 1, NULL)
+        RETURNING id
+      `) as { id: string }[];
+      incidentId = rows[0].id;
+      incidentsOpened += 1;
+      shouldNotify = true;
+    } else {
+      const inc = existing[0];
+      incidentId = inc.id;
+      const escalated = SEVERITY_RANK[severity] > SEVERITY_RANK[inc.severity];
+      const stale =
+        !inc.notified_at ||
+        Date.now() - new Date(inc.notified_at).getTime() > RENOTIFY_AFTER_MS;
+      shouldNotify = escalated || stale;
+
+      const newSeverity = escalated ? severity : inc.severity;
+      await sql`
+        UPDATE incidents SET
+          event_count = event_count + 1,
+          last_event_at = now(),
+          severity = ${newSeverity},
+          message = ${ev.message},
+          link_path = ${linkPath}
+        WHERE id = ${incidentId}
+      `;
+    }
+
+    // Store the raw event regardless.
+    await sql`
+      INSERT INTO events
+        (dashboard_id, detector_id, category, severity, message, payload, link_path, fingerprint, incident_id)
+      VALUES
+        (${dashboard.id}, ${ev.detectorId}, ${ev.category}, ${severity}, ${ev.message},
+         ${JSON.stringify(ev.payload ?? {})}, ${linkPath}, ${fingerprint}, ${incidentId})
+    `;
+    stored += 1;
+
+    // Telegram routing: data alerts only, and only when fresh/escalated.
+    // info severity never pages; technical category never pages.
+    if (shouldNotify && severity !== 'info' && !isTechnical(ev.category)) {
+      const deepLink = buildDeepLink(dashboard.base_url, linkPath, incidentId);
+      await notifyTelegram({
+        dashboardName: dashboard.name,
+        severity,
+        category: ev.category,
+        message: ev.message,
+        deepLink,
+      });
+      await sql`UPDATE incidents SET notified_at = now() WHERE id = ${incidentId}`;
+      notified += 1;
+    }
+  }
+
+  return { stored, incidentsOpened, notified };
+}
+
+/**
+ * Record a daily collection heartbeat. Called on every authenticated cron
+ * check-in, regardless of whether any alerts fired — this is the signal that
+ * a dashboard is alive and collecting data today.
+ */
+export async function recordCheckin(dashboardId: string): Promise<void> {
+  await sql`
+    INSERT INTO dashboard_health (dashboard_id, day, checks, last_check_at)
+    VALUES (${dashboardId}, current_date, 1, now())
+    ON CONFLICT (dashboard_id, day)
+    DO UPDATE SET checks = dashboard_health.checks + 1, last_check_at = now()
+  `;
+}
+
+export function buildDeepLink(baseUrl: string, linkPath: string | null, incidentId: string): string {
+  const base = baseUrl.replace(/\/$/, '');
+  const path = linkPath ?? '/';
+  const sep = path.includes('?') ? '&' : '?';
+  return `${base}${path}${sep}setnel=${incidentId}`;
+}
+
+/**
+ * Auto-resolve: any active incident with no new event in 30 min flips to
+ * resolved. Called by the resolve cron.
+ */
+export async function resolveStale(): Promise<number> {
+  const rows = (await sql`
+    UPDATE incidents
+    SET status = 'resolved', resolved_at = now()
+    WHERE status = 'active' AND last_event_at < now() - interval '30 minutes'
+    RETURNING id
+  `) as { id: string }[];
+  return rows.length;
+}
