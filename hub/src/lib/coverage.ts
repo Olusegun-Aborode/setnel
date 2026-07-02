@@ -19,7 +19,7 @@ export const RISK_TYPES = [
 ] as const;
 export type RiskType = (typeof RISK_TYPES)[number];
 
-export const COVERAGE_DASHBOARDS = ['Aave V3', 'State of SUI', 'SparkLend', 'Lending Intel', 'Liquidator'] as const;
+export const COVERAGE_DASHBOARDS = ['Aave V3', 'State of SUI', 'RWA Terminal', 'SparkLend', 'Lending Intel', 'Liquidator'] as const;
 export type CoverageDash = (typeof COVERAGE_DASHBOARDS)[number];
 
 // blocked notes explain WHY (used as cell tooltip).
@@ -55,6 +55,19 @@ export const COVERAGE: Record<CoverageDash, Partial<Record<RiskType, Cover>>> = 
     'Oracle deviation': 'blocked',
     'Stablecoin depeg': 'blocked',
     'Concentration (HHI)': 'covered',
+    'Revenue': 'na',
+    'Data integrity': 'covered',
+    'Statistical anomaly': 'covered',
+  },
+  'RWA Terminal': {
+    'TVL / flows': 'covered',
+    'Liquidity / utilization': 'na',
+    'Liquidations': 'na',
+    'Bad debt': 'na',
+    'At-risk liquidations': 'na',
+    'Oracle deviation': 'planned',
+    'Stablecoin depeg': 'covered',
+    'Concentration (HHI)': 'planned',
     'Revenue': 'na',
     'Data integrity': 'covered',
     'Statistical anomaly': 'covered',

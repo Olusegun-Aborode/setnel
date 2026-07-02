@@ -1,0 +1,28 @@
+name: setnel-rwa
+# RWA Terminal's backend is a Cloudflare Worker with a public API, so its
+# detectors run centrally here (no in-dashboard cron route). Fetches the
+# worker's snapshot and posts events + samples to the Setnel Hub every 15 min.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: setnel-rwa
+  cancel-in-progress: false
+
+jobs:
+  rwa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run RWA detectors
+        env:
+          SETNEL_HUB_URL: https://setnel.datumlab.xyz
+          SETNEL_DASHBOARD_SECRET_RWA: ${{ secrets.SETNEL_DASHBOARD_SECRET_RWA }}
+        run: node scripts/detectors/rwa.mjs
