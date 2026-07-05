@@ -1,6 +1,6 @@
 import { sql, SEVERITY_RANK, type DashboardRow, type IncidentRow, type Severity } from './db';
-import { isTechnical, notifyTelegram } from './notify';
-import { getDetectorConfigMap } from './admin';
+import { isTechnical, deliverAlert } from './notify';
+import { getDetectorConfigMap, getChannelConfigMap, channelsFor, getEscalation, parseRecipients } from './admin';
 import type { IncomingEvent } from './types';
 
 // Re-notify cadence for an UNACKNOWLEDGED incident that keeps firing. Critical/
@@ -37,6 +37,9 @@ export async function ingestBatch(
   // Per-detector config: disabled detectors are dropped entirely; severity
   // overrides replace the detector's own severity.
   const detectorConfig = await getDetectorConfigMap();
+  // Per-severity channel routing + email recipients (resolved once per batch).
+  const channelMap = await getChannelConfigMap();
+  const emailRecipients = parseRecipients((await getEscalation()).emailRecipients);
 
   for (const ev of events) {
     const cfg = detectorConfig.get(`${dashboard.id}:${ev.detectorId}`);
@@ -118,17 +121,19 @@ export async function ingestBatch(
     // detectors never page (but the incident is still recorded above).
     if (shouldNotify && severity !== 'info' && !isTechnical(ev.category) && !mutedDetectors.has(ev.detectorId)) {
       const deepLink = buildDeepLink(dashboard.base_url, linkPath, incidentId);
-      const sent = await notifyTelegram({
+      const routed = await deliverAlert({
         dashboardName: dashboard.name,
         severity,
         category: ev.category,
         message: ev.message,
         deepLink,
         incidentId,
+        channels: channelsFor(channelMap, severity),
+        emailRecipients,
       });
-      // Only mark notified if it actually went out. A failed send is
+      // Only mark notified if at least one channel went out. A failed send is
       // dead-lettered; leaving notified_at null lets the next run retry.
-      if (sent) {
+      if (routed.anySent) {
         await sql`UPDATE incidents SET notified_at = now() WHERE id = ${incidentId}`;
         notified += 1;
       }

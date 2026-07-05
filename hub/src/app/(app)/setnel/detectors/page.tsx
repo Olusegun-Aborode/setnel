@@ -65,7 +65,7 @@ export default async function DetectorsPage() {
                   const fpRate = d.total > 0 ? Math.round((d.falsePositives / d.total) * 100) : 0;
                   return (
                     <tr key={d.detectorId}>
-                      <td align="left" className="cov-risk">{d.detectorId}</td>
+                      <td align="left" className="cov-risk"><a className="card-detail" href={`/setnel/detectors/${d.dashboardId}/${encodeURIComponent(d.detectorId)}`}>{d.detectorId}</a></td>
                       <td>{d.total}</td>
                       <td className={fpRate >= 30 ? 'cov-blocked' : ''}>{d.falsePositives}{d.total ? ` · ${fpRate}%` : ''}</td>
                       <td>{timeAgo(d.lastSeen)}</td>

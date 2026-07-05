@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
 import { getHealthMatrix } from '@/lib/queries';
+import { getActiveCountsByDashboard } from '@/lib/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,26 +17,32 @@ function timeAgo(iso: string | null): string {
 export default async function DashboardsPage() {
   if (!(await isAuthed())) redirect('/login');
   const health = await getHealthMatrix();
+  const activeCounts = await getActiveCountsByDashboard();
   return (
     <section className="panel">
-      <div className="panel-head"><h2>Monitored dashboards</h2><span className="panel-note">{health.length} surfaces · collection status</span></div>
+      <div className="panel-head"><h2>Monitored dashboards</h2><span className="panel-note">{health.length} surfaces · collection status · click to drill down</span></div>
       <div className="matrix">
         <div className="matrix-row matrix-head">
           <div className="m-name">Dashboard</div>
           <div className="m-cells m-cells-head">14-day collection</div>
           <div className="m-last">Last check</div>
           <div className="m-today">Today</div>
+          <div className="m-today">Active</div>
         </div>
-        {health.map((h) => (
-          <a key={h.id} className="matrix-row dash-row" href={`/setnel?dashboard=${h.id}`}>
-            <div className="m-name"><span className={`status-dot status-${h.status}`} />{h.name}</div>
-            <div className="m-cells">
-              {h.cells.map((c) => <span key={c.day} className={`cell lvl-${c.checks <= 0 ? 0 : c.checks < 60 ? 1 : c.checks < 200 ? 2 : 3}`} title={`${c.day}: ${c.checks}`} />)}
-            </div>
-            <div className="m-last">{timeAgo(h.lastCheckAt)}</div>
-            <div className="m-today">{h.checksToday}</div>
-          </a>
-        ))}
+        {health.map((h) => {
+          const active = activeCounts.get(h.id) ?? 0;
+          return (
+            <a key={h.id} className="matrix-row dash-row" href={`/setnel/dashboards/${h.id}`}>
+              <div className="m-name"><span className={`status-dot status-${h.status}`} />{h.name}</div>
+              <div className="m-cells">
+                {h.cells.map((c) => <span key={c.day} className={`cell lvl-${c.checks <= 0 ? 0 : c.checks < 60 ? 1 : c.checks < 200 ? 2 : 3}`} title={`${c.day}: ${c.checks}`} />)}
+              </div>
+              <div className="m-last">{timeAgo(h.lastCheckAt)}</div>
+              <div className="m-today">{h.checksToday}</div>
+              <div className="m-today">{active > 0 ? <span className="badge badge-count">{active}</span> : <span className="kpi-sub">0</span>}</div>
+            </a>
+          );
+        })}
       </div>
     </section>
   );

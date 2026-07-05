@@ -1,6 +1,6 @@
 import { sql } from './db';
-import { notifyTelegram } from './notify';
-import { getEscalation } from './admin';
+import { deliverAlert } from './notify';
+import { getEscalation, getChannelConfigMap, channelsFor, parseRecipients } from './admin';
 import { buildDeepLink } from './ingest';
 
 // Escalation engine: re-page unacknowledged critical/emergency incidents that
@@ -9,6 +9,8 @@ import { buildDeepLink } from './ingest';
 export async function runEscalations(): Promise<{ escalated: number }> {
   const esc = await getEscalation();
   if (!esc.enabled) return { escalated: 0 };
+  const channelMap = await getChannelConfigMap();
+  const emailRecipients = parseRecipients(esc.emailRecipients);
 
   const rows = (await sql`
     SELECT i.id, i.dashboard_id, i.severity, i.message, i.link_path, d.name AS dashboard_name, d.base_url
@@ -24,16 +26,18 @@ export async function runEscalations(): Promise<{ escalated: number }> {
   let escalated = 0;
   for (const r of rows) {
     const oncall = esc.oncallName ? ` — on-call: ${esc.oncallName}${esc.oncallContact ? ` (${esc.oncallContact})` : ''}` : '';
-    const sent = await notifyTelegram({
+    const routed = await deliverAlert({
       dashboardName: r.dashboard_name,
       severity: r.severity as 'critical' | 'emergency',
       category: 'escalation',
       message: `⏫ ESCALATION — unacknowledged ${esc.escalateAfterMin}m+: ${r.message}${oncall}`,
       deepLink: buildDeepLink(r.base_url, r.link_path, String(r.id)),
       incidentId: r.id,
+      channels: channelsFor(channelMap, r.severity),
+      emailRecipients,
     });
     await sql`UPDATE incidents SET escalated_at = now() WHERE id = ${r.id}`;
-    if (sent) escalated += 1;
+    if (routed.anySent) escalated += 1;
   }
   return { escalated };
 }

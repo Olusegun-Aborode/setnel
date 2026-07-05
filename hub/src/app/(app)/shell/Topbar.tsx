@@ -6,7 +6,8 @@ import { LiveRefresh } from '../setnel/live';
 import { setActor } from '../setnel/actions';
 
 const TITLES: { match: (p: string) => boolean; title: string; sub: string }[] = [
-  { match: (p) => p.startsWith('/setnel/incident'), title: 'Incident', sub: 'Evidence, runbook, and workflow' },
+  { match: (p) => p.startsWith('/setnel/incidents'), title: 'Incidents', sub: 'Full triage — filter, acknowledge, mute, resolve' },
+  { match: (p) => p.startsWith('/setnel/incident/'), title: 'Incident', sub: 'Evidence, runbook, and workflow' },
   { match: (p) => p.startsWith('/setnel/metrics'), title: 'Metrics explorer', sub: 'Per-metric values against their learned baseline' },
   { match: (p) => p.startsWith('/setnel/coverage'), title: 'Coverage map', sub: 'Which risks are watched per protocol — and the blind spots' },
   { match: (p) => p.startsWith('/setnel/backtest'), title: 'Threshold backtest', sub: 'Replay detector rules over stored history' },

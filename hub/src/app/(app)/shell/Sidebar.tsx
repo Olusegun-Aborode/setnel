@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, LayoutGrid, Activity, Grid3x3, History,
+  LayoutDashboard, LayoutGrid, Activity, Grid3x3, History, Flame,
   BarChart3, BookOpen, SlidersHorizontal, BellRing, Settings, Inbox,
   type LucideIcon,
 } from 'lucide-react';
@@ -11,6 +11,7 @@ type Item = { href: string; icon: LucideIcon; label: string; exact?: boolean };
 const NAV: { section: string; items: Item[] }[] = [
   { section: 'Monitor', items: [
     { href: '/setnel', icon: LayoutDashboard, label: 'Console', exact: true },
+    { href: '/setnel/incidents', icon: Flame, label: 'Incidents' },
     { href: '/setnel/dashboards', icon: LayoutGrid, label: 'Dashboards' },
     { href: '/setnel/metrics', icon: Activity, label: 'Metrics' },
   ] },
@@ -33,7 +34,8 @@ const NAV: { section: string; items: Item[] }[] = [
 export function Sidebar({ activeCount }: { activeCount: number }) {
   const path = usePathname();
   const isActive = (it: Item) => {
-    if (it.exact) return path === it.href || path.startsWith('/setnel/incident');
+    if (it.exact) return path === it.href; // Console highlights only at the root
+    if (it.href === '/setnel/incidents') return path.startsWith('/setnel/incidents') || path.startsWith('/setnel/incident/');
     return path === it.href || path.startsWith(it.href + '/');
   };
   return (
@@ -53,7 +55,7 @@ export function Sidebar({ activeCount }: { activeCount: number }) {
                 <a key={it.href} href={it.href} className={`navitem ${isActive(it) ? 'navitem-on' : ''}`}>
                   <Icon size={16} strokeWidth={1.6} />
                   <span>{it.label}</span>
-                  {it.href === '/setnel' && activeCount > 0 ? <span className="navitem-count">{activeCount}</span> : null}
+                  {it.href === '/setnel/incidents' && activeCount > 0 ? <span className="navitem-count">{activeCount}</span> : null}
                 </a>
               );
             })}

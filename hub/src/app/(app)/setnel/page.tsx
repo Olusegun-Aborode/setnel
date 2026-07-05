@@ -7,59 +7,18 @@ import {
   getChartBundle,
   getSla,
   HEALTH_EXPECTED_PER_DAY,
-  type Filters,
   type DashboardHealth,
-  type IncidentWithDashboard,
 } from '@/lib/queries';
 import { TrendChart } from './trend-chart';
-import { acknowledgeIncident, muteIncident, markFalsePositive } from './actions';
+import { IncidentCard, timeAgo } from './incident-card';
 
 export const dynamic = 'force-dynamic';
 
-const SEVERITY_CLASS: Record<string, string> = {
-  info: 'sev-info',
-  warning: 'sev-warning',
-  critical: 'sev-critical',
-  emergency: 'sev-emergency',
-};
-
-function fmtExposure(n: number): string {
-  const a = Math.abs(n);
-  if (a >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (a >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
-}
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return 'never';
-  const ms = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(ms / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
-export default async function SetnelConsole({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | undefined>>;
-}) {
+export default async function SetnelConsole() {
   if (!(await isAuthed())) redirect('/login');
 
-  const sp = await searchParams;
-  const filters: Filters = {
-    status: (sp.status as Filters['status']) ?? 'all',
-    dashboardId: sp.dashboard || undefined,
-    category: sp.category || undefined,
-    severity: sp.severity || undefined,
-    sinceHours: sp.since ? Number(sp.since) : undefined,
-  };
-
-  const [incidents, summary, health, bundle, sla] = await Promise.all([
-    getIncidents(filters),
+  const [active, summary, health, bundle, sla] = await Promise.all([
+    getIncidents({ status: 'active' }),
     getSummary(),
     getHealthMatrix(),
     getChartBundle(30),
@@ -68,8 +27,7 @@ export default async function SetnelConsole({
 
   const healthy = health.filter((h) => h.status === 'healthy').length;
   const collectingToday = health.filter((h) => h.checksToday > 0).length;
-  const activeIncidents = incidents.filter((i) => i.status === 'active');
-  const resolvedIncidents = incidents.filter((i) => i.status === 'resolved');
+  const preview = active.slice(0, 4);
 
   return (
     <>
@@ -97,7 +55,7 @@ export default async function SetnelConsole({
         <span className="sla-item"><b>{sla.avgTimeToAckMin == null ? '—' : sla.avgTimeToAckMin + 'm'}</b> avg time to ack</span>
         <span className="sla-item"><b>{sla.avgTimeToResolveMin == null ? '—' : sla.avgTimeToResolveMin + 'm'}</b> avg time to resolve</span>
         <span className="sla-item"><b>{sla.falsePositivePct}%</b> false positives</span>
-        <span className="sla-note">last 30 days · {sla.total} incidents</span>
+        <span className="sla-note">last 30 days · {sla.total} incidents · <a className="card-detail" href="/setnel/reports">reports →</a></span>
       </section>
 
       {/* Trend — filterable by dashboard / category / protocol */}
@@ -113,7 +71,7 @@ export default async function SetnelConsole({
       <section className="panel">
         <div className="panel-head">
           <h2>Dashboard health</h2>
-          <span className="panel-note">Daily collection over the last 14 days · target ~{HEALTH_EXPECTED_PER_DAY}/day</span>
+          <span className="panel-note">Daily collection over the last 14 days · target ~{HEALTH_EXPECTED_PER_DAY}/day · <a className="card-detail" href="/setnel/dashboards">all dashboards →</a></span>
         </div>
         <div className="matrix">
           <div className="matrix-row matrix-head">
@@ -138,80 +96,26 @@ export default async function SetnelConsole({
         </div>
       </section>
 
-      {/* Incidents */}
+      {/* Active incidents — top-4 preview, full list on the Incidents tab */}
       <section className="panel">
         <div className="panel-head">
-          <h2>Incidents</h2>
-          <span className="panel-note">{summary.last24h} opened in the last 24h</span>
+          <h2>Active incidents</h2>
+          <a className="card-detail" href="/setnel/incidents">See all {summary.activeCount > 0 ? `(${summary.activeCount})` : ''} →</a>
         </div>
-
-        <nav className="filters">
-          <FilterLink sp={sp} k="status" v="active" label="Active" />
-          <FilterLink sp={sp} k="status" v="all" label="All" />
-          <span className="filter-sep" />
-          <FilterLink sp={sp} k="severity" v="critical" label="Critical" />
-          <FilterLink sp={sp} k="severity" v="emergency" label="Emergency" />
-          <span className="filter-sep" />
-          {summary.dashboards.map((d) => (
-            <FilterLink key={d.id} sp={sp} k="dashboard" v={d.id} label={d.name} />
-          ))}
-        </nav>
-
         <ul className="feed">
-          {activeIncidents.length === 0 ? (
+          {preview.length === 0 ? (
             <li className="empty">No active incidents. 🟢</li>
           ) : (
-            activeIncidents.map((i) => <IncidentCard key={i.id} i={i} />)
+            preview.map((i) => <IncidentCard key={i.id} i={i} />)
           )}
         </ul>
-
-        {resolvedIncidents.length > 0 ? (
-          <details className="resolved-disclosure">
-            <summary>Resolved ({resolvedIncidents.length})</summary>
-            <ul className="feed" style={{ marginTop: 10 }}>
-              {resolvedIncidents.map((i) => <IncidentCard key={i.id} i={i} />)}
-            </ul>
-          </details>
+        {active.length > preview.length ? (
+          <p className="panel-note" style={{ marginTop: 10 }}>
+            Showing 4 of {active.length} active. <a className="card-detail" href="/setnel/incidents">Open the full triage view →</a>
+          </p>
         ) : null}
       </section>
     </>
-  );
-}
-
-function IncidentCard({ i }: { i: IncidentWithDashboard }) {
-  const muted = i.muted_until && new Date(i.muted_until).getTime() > Date.now();
-  return (
-    <li className={`card ${SEVERITY_CLASS[i.severity] ?? ''}`}>
-      <div className="card-main">
-        <div className="card-top">
-          <span className="card-dash">{i.dashboard_name}</span>
-          <span className={`badge ${SEVERITY_CLASS[i.severity] ?? ''}`}>{i.severity}</span>
-          {i.status === 'resolved' ? <span className="badge badge-resolved">resolved</span> : null}
-          {i.acknowledged_at ? <span className="badge badge-resolved">ack {i.acknowledged_by}</span> : null}
-          {muted ? <span className="badge badge-count">muted</span> : null}
-          {i.false_positive ? <span className="badge badge-exp">false positive</span> : null}
-          {i.event_count > 1 ? <span className="badge badge-count">×{i.event_count}</span> : null}
-          {i.exposure_usd ? <span className="badge badge-exp">{fmtExposure(i.exposure_usd)} at risk</span> : null}
-        </div>
-        <a className="card-msg card-link" href={`/setnel/incident/${i.id}`}>{i.message}</a>
-        <div className="card-meta">
-          <span>{i.detector_id}</span>
-          <span>·</span>
-          <span>{timeAgo(i.last_event_at)}</span>
-          <span>·</span>
-          <a href={`/setnel/incident/${i.id}`} className="card-detail">details →</a>
-        </div>
-      </div>
-      {i.status === 'active' ? (
-        <div className="card-actions">
-          {!i.acknowledged_at ? (
-            <form action={acknowledgeIncident}><input type="hidden" name="id" value={i.id} /><button className="act act-primary">Ack</button></form>
-          ) : null}
-          <form action={muteIncident}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="minutes" value="60" /><button className="act">Mute</button></form>
-          <form action={markFalsePositive}><input type="hidden" name="id" value={i.id} /><button className="act act-danger">FP</button></form>
-        </div>
-      ) : null}
-    </li>
   );
 }
 
@@ -227,7 +131,7 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: s
 
 function HealthRow({ h }: { h: DashboardHealth }) {
   return (
-    <div className="matrix-row">
+    <a className="matrix-row dash-row" href={`/setnel/dashboards/${h.id}`}>
       <div className="m-name">
         <span className={`status-dot status-${h.status}`} />
         {h.name}
@@ -239,7 +143,7 @@ function HealthRow({ h }: { h: DashboardHealth }) {
       </div>
       <div className="m-last">{timeAgo(h.lastCheckAt)}</div>
       <div className="m-today">{h.checksToday}</div>
-    </div>
+    </a>
   );
 }
 
@@ -253,17 +157,4 @@ function level(checks: number): 0 | 1 | 2 | 3 {
 
 function dayNum(iso: string): string {
   return String(new Date(iso + 'T00:00:00Z').getUTCDate());
-}
-
-function FilterLink({ sp, k, v, label }: { sp: Record<string, string | undefined>; k: string; v: string; label: string }) {
-  const active = sp[k] === v;
-  const next = new URLSearchParams(Object.entries(sp).filter(([, val]) => val) as [string, string][]);
-  if (active) next.delete(k);
-  else next.set(k, v);
-  const qs = next.toString();
-  return (
-    <a className={`chip ${active ? 'chip-on' : ''}`} href={`/setnel${qs ? `?${qs}` : ''}`}>
-      {label}
-    </a>
-  );
 }

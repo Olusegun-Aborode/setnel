@@ -167,3 +167,42 @@ CREATE INDEX IF NOT EXISTS audit_log_time_idx ON audit_log (created_at DESC);
 
 -- Track when an incident was last escalated (for the escalation engine).
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMPTZ;
+
+-- ── Tab build-out additions ──
+
+-- Per-severity notification channel routing (Telegram / email). info never pages.
+CREATE TABLE IF NOT EXISTS channel_config (
+  severity   TEXT PRIMARY KEY,
+  telegram   BOOLEAN NOT NULL DEFAULT true,
+  email      BOOLEAN NOT NULL DEFAULT false,
+  updated_by TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO channel_config (severity, telegram, email) VALUES
+  ('warning', true, false), ('critical', true, true), ('emergency', true, true)
+  ON CONFLICT (severity) DO NOTHING;
+
+-- Email recipients for escalation/alerts (comma/newline separated).
+ALTER TABLE escalation_config ADD COLUMN IF NOT EXISTS email_recipients TEXT;
+
+-- Attribution role labels per operator name. Display-only — there is no per-user
+-- login today (shared password + name field), so this documents who does what;
+-- it does NOT enforce permissions. Enforcement arrives with real accounts.
+CREATE TABLE IF NOT EXISTS member_roles (
+  actor      TEXT PRIMARY KEY,
+  role       TEXT NOT NULL DEFAULT 'Responder',
+  updated_by TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Detector proposals raised from the Coverage map (a blind spot → a request).
+CREATE TABLE IF NOT EXISTS detector_proposals (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  dashboard_id TEXT,
+  risk_type    TEXT NOT NULL,
+  note         TEXT,
+  proposed_by  TEXT,
+  status       TEXT NOT NULL DEFAULT 'open',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS detector_proposals_time_idx ON detector_proposals (created_at DESC);

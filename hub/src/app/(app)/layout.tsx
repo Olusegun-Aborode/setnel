@@ -13,8 +13,12 @@ export default async function AppShell({ children }: { children: React.ReactNode
   const [summary, jar] = await Promise.all([getSummary(), cookies()]);
   const actorName = jar.get('setnel_actor')?.value ?? '';
 
+  let prefs = { density: 'comfortable', colorblind: false };
+  try { prefs = { ...prefs, ...JSON.parse(jar.get('setnel_prefs')?.value ?? '{}') }; } catch { /* default */ }
+  const shellClass = `shell-root${prefs.density === 'compact' ? ' density-compact' : ''}${prefs.colorblind ? ' cb-safe' : ''}`;
+
   return (
-    <div className="shell-root">
+    <div className={shellClass}>
       <Sidebar activeCount={summary.activeCount} />
       <div className="shell-main">
         <Topbar criticalActive={summary.criticalActive} activeCount={summary.activeCount} actorName={actorName} />

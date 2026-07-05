@@ -77,6 +77,89 @@ export async function notifyTelegram(args: {
   return false;
 }
 
+/** One raw email send via Resend's HTTP API. Env-guarded; no-op if unconfigured. */
+async function sendEmailOnce(subject: string, text: string, recipients: string[]): Promise<{ ok: boolean; error?: string }> {
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.SETNEL_EMAIL_FROM;
+  if (!key || !from) return { ok: false, error: 'email not configured' };
+  if (!recipients.length) return { ok: false, error: 'no recipients' };
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ from, to: recipients.slice(0, 50), subject: subject.slice(0, 200), text }),
+    });
+    if (res.ok) return { ok: true };
+    const detail = await res.text().catch(() => '');
+    return { ok: false, error: `HTTP ${res.status}: ${detail.slice(0, 200)}` };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Send an alert email with retry + dead-letter, mirroring notifyTelegram. */
+export async function notifyEmail(args: {
+  dashboardName: string;
+  severity: Severity;
+  message: string;
+  deepLink: string;
+  recipients: string[];
+  incidentId?: string | number;
+}): Promise<boolean> {
+  if (!process.env.RESEND_API_KEY || !process.env.SETNEL_EMAIL_FROM || !args.recipients.length) return false;
+  const subject = `${SEVERITY_PREFIX[args.severity]} • ${args.dashboardName}`;
+  const text = [`${args.dashboardName} — ${args.severity}`, '', args.message, '', `Open: ${args.deepLink}`].join('\n');
+
+  let lastError = 'unknown';
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const r = await sendEmailOnce(subject, text, args.recipients);
+    if (r.ok) return true;
+    lastError = r.error ?? 'unknown';
+    if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS * attempt);
+  }
+  console.error('[notify] email failed after retries:', lastError);
+  try {
+    await sql`
+      INSERT INTO failed_notifications (channel, incident_id, message, error, attempts)
+      VALUES ('email', ${args.incidentId ?? null}, ${text}, ${lastError}, ${MAX_ATTEMPTS})
+    `;
+  } catch (e) {
+    console.error('[notify] dead-letter write failed', e);
+  }
+  return false;
+}
+
+/**
+ * Fan an alert out to the channels enabled for its severity. Callers resolve the
+ * routing (channel_config) + email recipients (escalation_config) and pass them
+ * in, so this stays free of the admin/data layer (no import cycle). Returns which
+ * channels actually delivered; the incident is "notified" if any did.
+ */
+export async function deliverAlert(args: {
+  dashboardName: string;
+  severity: Severity;
+  category: string;
+  message: string;
+  deepLink: string;
+  incidentId?: string | number;
+  channels: { telegram: boolean; email: boolean };
+  emailRecipients: string[];
+}): Promise<{ telegram: boolean; email: boolean; anySent: boolean }> {
+  const telegram = args.channels.telegram
+    ? await notifyTelegram({
+        dashboardName: args.dashboardName, severity: args.severity, category: args.category,
+        message: args.message, deepLink: args.deepLink, incidentId: args.incidentId,
+      })
+    : false;
+  const email = args.channels.email
+    ? await notifyEmail({
+        dashboardName: args.dashboardName, severity: args.severity, message: args.message,
+        deepLink: args.deepLink, recipients: args.emailRecipients, incidentId: args.incidentId,
+      })
+    : false;
+  return { telegram, email, anySent: telegram || email };
+}
+
 // Whether a category is an internal/technical issue (TG-suppressed).
 export function isTechnical(category: string): boolean {
   return category === 'technical';

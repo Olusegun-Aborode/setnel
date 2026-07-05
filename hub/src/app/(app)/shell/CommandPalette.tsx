@@ -6,6 +6,7 @@ import { Search } from 'lucide-react';
 
 const DESTS = [
   { label: 'Console', href: '/setnel' },
+  { label: 'Incidents', href: '/setnel/incidents' },
   { label: 'Dashboards', href: '/setnel/dashboards' },
   { label: 'Metrics explorer', href: '/setnel/metrics' },
   { label: 'Coverage map', href: '/setnel/coverage' },

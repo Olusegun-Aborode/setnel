@@ -36,9 +36,20 @@ function targetHref(action: string, target: string | null): string | null {
   return null;
 }
 
-export default async function InboxPage() {
+const KINDS = [
+  { k: 'all', label: 'All' },
+  { k: 'incident', label: 'Incidents' },
+  { k: 'config', label: 'Config' },
+  { k: 'detector', label: 'Detectors' },
+  { k: 'dashboard', label: 'Dashboards' },
+];
+
+export default async function InboxPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   if (!(await isAuthed())) redirect('/login');
-  const log = await getAuditLog(300);
+  const sp = await searchParams;
+  const kind = sp.kind && KINDS.some((x) => x.k === sp.kind) ? sp.kind : 'all';
+  const all = await getAuditLog(300);
+  const log = kind === 'all' ? all : all.filter((l) => (ACTIONS[l.action]?.kind ?? 'config') === kind);
   const actors = new Set(log.map((l) => l.actor)).size;
 
   return (
@@ -54,6 +65,11 @@ export default async function InboxPage() {
 
       <section className="panel">
         <div className="panel-head"><h2>Audit log</h2><span className="panel-note">chronological, newest first</span></div>
+        <nav className="filters">
+          {KINDS.map((x) => (
+            <a key={x.k} className={`chip ${kind === x.k ? 'chip-on' : ''}`} href={x.k === 'all' ? '/setnel/inbox' : `/setnel/inbox?kind=${x.k}`}>{x.label}</a>
+          ))}
+        </nav>
         {log.length === 0 ? (
           <p className="panel-note">No activity recorded yet. Console actions (ack, mute, resolve, config changes) show up here.</p>
         ) : (

@@ -400,3 +400,30 @@ h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
   .sidebar { display: none; }
   .wb-kpis { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Detector live-backtest tuner ── */
+.tuner-controls { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; }
+.tuner-slider { display: flex; flex-direction: column; gap: 8px; min-width: 200px; flex: 1; }
+.tuner-slider input[type="range"] { width: 100%; accent-color: var(--brand, #4f6ef2); }
+.tuner-slider .kpi-label b { color: var(--ink); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.tuner-total { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; text-align: center; min-width: 120px; }
+.tuner-total .kpi-value { font-size: 30px; margin: 2px 0; }
+
+/* ── Channel checkboxes ── */
+.chan-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); margin-right: 14px; cursor: pointer; }
+.chan-check input { accent-color: var(--brand, #4f6ef2); }
+
+/* ── Preference: compact density ── */
+.density-compact .panel { padding: 14px 16px; }
+.density-compact .kpis { gap: 10px; }
+.density-compact .kpi { padding: 12px 14px; }
+.density-compact .kpi-value { font-size: 22px; }
+.density-compact .card { padding: 12px 14px; }
+.density-compact .cov-table td, .density-compact .cov-table th { padding-top: 6px; padding-bottom: 6px; }
+.density-compact .content-rail > section { margin-bottom: 12px; }
+
+/* ── Preference: colorblind-safe status (shape/weight, not just hue) ── */
+.cb-safe .badge { border: 1px solid currentColor; }
+.cb-safe .status-dot { outline: 1px solid var(--ink); outline-offset: 1px; }
+.cb-safe .status-healthy { box-shadow: inset 0 0 0 2px #fff; }
+.cb-safe .cov-yes::after { content: ''; }

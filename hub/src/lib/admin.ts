@@ -95,12 +95,85 @@ export async function getRecentEscalations(limit = 20): Promise<EscalatedInciden
 }
 
 // ── Escalation / on-call ──
-export type Escalation = { escalateAfterMin: number; oncallName: string | null; oncallContact: string | null; enabled: boolean };
+export type Escalation = { escalateAfterMin: number; oncallName: string | null; oncallContact: string | null; enabled: boolean; emailRecipients: string | null };
 export async function getEscalation(): Promise<Escalation> {
-  const r = (await sql`SELECT escalate_after_min, oncall_name, oncall_contact, enabled FROM escalation_config WHERE id = 1`) as
-    { escalate_after_min: number; oncall_name: string | null; oncall_contact: string | null; enabled: boolean }[];
+  const r = (await sql`SELECT escalate_after_min, oncall_name, oncall_contact, enabled, email_recipients FROM escalation_config WHERE id = 1`) as
+    { escalate_after_min: number; oncall_name: string | null; oncall_contact: string | null; enabled: boolean; email_recipients: string | null }[];
   const x = r[0];
-  return { escalateAfterMin: x?.escalate_after_min ?? 15, oncallName: x?.oncall_name ?? null, oncallContact: x?.oncall_contact ?? null, enabled: x?.enabled ?? true };
+  return {
+    escalateAfterMin: x?.escalate_after_min ?? 15, oncallName: x?.oncall_name ?? null,
+    oncallContact: x?.oncall_contact ?? null, enabled: x?.enabled ?? true, emailRecipients: x?.email_recipients ?? null,
+  };
+}
+
+// Parse the free-text recipients field into a clean address list.
+export function parseRecipients(raw: string | null): string[] {
+  if (!raw) return [];
+  return raw.split(/[\s,;]+/).map((s) => s.trim()).filter((s) => s.includes('@'));
+}
+
+// ── Notification channel routing (per severity) ──
+export type ChannelConfig = { telegram: boolean; email: boolean };
+const DEFAULT_CHANNELS: ChannelConfig = { telegram: true, email: false };
+export async function getChannelConfigMap(): Promise<Map<string, ChannelConfig>> {
+  const rows = (await sql`SELECT severity, telegram, email FROM channel_config`) as
+    { severity: string; telegram: boolean; email: boolean }[];
+  return new Map(rows.map((r) => [r.severity, { telegram: r.telegram, email: r.email }]));
+}
+export function channelsFor(map: Map<string, ChannelConfig>, severity: string): ChannelConfig {
+  return map.get(severity) ?? DEFAULT_CHANNELS;
+}
+export type ChannelRow = { severity: string; telegram: boolean; email: boolean };
+export async function getChannels(): Promise<ChannelRow[]> {
+  const order = ['warning', 'critical', 'emergency'];
+  const map = await getChannelConfigMap();
+  return order.map((s) => ({ severity: s, ...channelsFor(map, s) }));
+}
+
+// ── Member role labels (attribution only — see schema note) ──
+export const MEMBER_ROLES = ['Owner', 'Responder', 'System', 'Viewer'] as const;
+export async function getMemberRoleMap(): Promise<Map<string, string>> {
+  const rows = (await sql`SELECT actor, role FROM member_roles`) as { actor: string; role: string }[];
+  return new Map(rows.map((r) => [r.actor, r.role]));
+}
+
+// ── Detector proposals (from the Coverage map) ──
+export type Proposal = { id: string; dashboardId: string | null; riskType: string; note: string | null; proposedBy: string | null; status: string; created_at: string };
+export async function getProposals(limit = 100): Promise<Proposal[]> {
+  const rows = (await sql`
+    SELECT id, dashboard_id, risk_type, note, proposed_by, status, created_at
+    FROM detector_proposals ORDER BY created_at DESC LIMIT ${limit}
+  `) as { id: string; dashboard_id: string | null; risk_type: string; note: string | null; proposed_by: string | null; status: string; created_at: string }[];
+  return rows.map((r) => ({ id: r.id, dashboardId: r.dashboard_id, riskType: r.risk_type, note: r.note, proposedBy: r.proposed_by, status: r.status, created_at: r.created_at }));
+}
+
+// ── Active-incident counts per dashboard (Dashboards tab) ──
+export async function getActiveCountsByDashboard(): Promise<Map<string, number>> {
+  const rows = (await sql`
+    SELECT dashboard_id, count(*)::int AS n FROM incidents WHERE status = 'active' GROUP BY dashboard_id
+  `) as { dashboard_id: string; n: number }[];
+  return new Map(rows.map((r) => [r.dashboard_id, r.n]));
+}
+
+// ── Weekly report series (Reports tab trends + CSV export) ──
+export type WeekRow = { week: string; incidents: number; falsePositives: number; ackedPct: number; mttaMin: number | null; mttrMin: number | null };
+export async function getWeeklyReport(weeks = 12): Promise<WeekRow[]> {
+  const rows = (await sql`
+    SELECT to_char(date_trunc('week', opened_at), 'YYYY-MM-DD') AS week,
+           count(*)::int AS incidents,
+           count(*) FILTER (WHERE false_positive)::int AS fp,
+           count(*) FILTER (WHERE acknowledged_at IS NOT NULL)::int AS acked,
+           avg(EXTRACT(EPOCH FROM (acknowledged_at - opened_at)) / 60) FILTER (WHERE acknowledged_at IS NOT NULL) AS mtta,
+           avg(EXTRACT(EPOCH FROM (resolved_at - opened_at)) / 60) FILTER (WHERE resolved_at IS NOT NULL) AS mttr
+    FROM incidents
+    WHERE opened_at > now() - (${weeks} || ' weeks')::interval
+    GROUP BY 1 ORDER BY 1
+  `) as { week: string; incidents: number; fp: number; acked: number; mtta: number | null; mttr: number | null }[];
+  return rows.map((r) => ({
+    week: r.week, incidents: r.incidents, falsePositives: r.fp,
+    ackedPct: r.incidents ? Math.round((r.acked / r.incidents) * 100) : 0,
+    mttaMin: r.mtta == null ? null : Math.round(r.mtta), mttrMin: r.mttr == null ? null : Math.round(r.mttr),
+  }));
 }
 
 // ── Settings: dashboards admin + members ──
@@ -110,10 +183,14 @@ export async function getDashboardsAdmin(): Promise<DashboardAdmin[]> {
     { id: string; name: string; protocol_slug: string; base_url: string; enabled: boolean }[];
   return rows.map((r) => ({ id: r.id, name: r.name, protocolSlug: r.protocol_slug, baseUrl: r.base_url, enabled: r.enabled }));
 }
-export async function getMembers(): Promise<{ actor: string; actions: number }[]> {
-  return (await sql`
-    SELECT actor, count(*)::int AS actions FROM audit_log GROUP BY actor ORDER BY actions DESC LIMIT 50
-  `) as { actor: string; actions: number }[];
+export type Member = { actor: string; actions: number; lastSeen: string | null; role: string };
+export async function getMembers(): Promise<Member[]> {
+  const roles = await getMemberRoleMap();
+  const rows = (await sql`
+    SELECT actor, count(*)::int AS actions, max(created_at) AS last_seen
+    FROM audit_log GROUP BY actor ORDER BY actions DESC LIMIT 50
+  `) as { actor: string; actions: number; last_seen: string | null }[];
+  return rows.map((r) => ({ actor: r.actor, actions: r.actions, lastSeen: r.last_seen, role: roles.get(r.actor) ?? 'Responder' }));
 }
 
 // ── Inbox / audit feed ──
