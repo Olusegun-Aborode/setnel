@@ -1,0 +1,30 @@
+<!-- @dsCard group="Brand" viewport="700x150" name="Live & Motion" subtitle="Realtime pulse + severity escalation vocabulary" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: var(--surface-card); display: flex; gap: 40px; align-items: center; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .lab { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+  .live-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--radius-btn); background: var(--white); border: 1px solid var(--ink); color: var(--ink); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .live-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--live); animation: setnel-pulse var(--pulse-period) var(--ease-in-out) infinite; }
+  .dots { display: flex; gap: 10px; align-items: center; }
+  .d { width: 12px; height: 12px; border-radius: 999px; }
+  .arrow { color: var(--faint); font-size: 13px; }
+</style>
+</head>
+<body>
+  <div class="item"><span class="live-btn"><span class="live-dot"></span>live · 12s</span><span class="lab">auto-refresh</span></div>
+  <div class="item">
+    <div class="dots">
+      <span class="d" style="background:var(--info)"></span><span class="arrow">→</span>
+      <span class="d" style="background:var(--warning)"></span><span class="arrow">→</span>
+      <span class="d" style="background:var(--critical)"></span><span class="arrow">→</span>
+      <span class="d" style="background:var(--emergency)"></span>
+    </div>
+    <span class="lab">severity escalation</span>
+  </div>
+</body>
+</html>

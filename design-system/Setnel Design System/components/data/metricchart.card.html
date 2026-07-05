@@ -1,0 +1,37 @@
+<!-- @dsCard group="Components" viewport="700x320" name="MetricChart & NowPill" subtitle="Interactive chart (crosshair + inline threshold) + global now-state" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: var(--panel-2); }
+  .block { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 15px 17px; margin-bottom: 14px; }
+  .lbl { font: 11px/1 var(--font-sans); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <div class="block"><div class="lbl">MetricChart · hover to read values</div><div id="chart"></div></div>
+  <div class="block"><div class="lbl">NowPill · worst active severity</div><div class="row" id="now"></div></div>
+  <script src="../../_ds_bundle.js"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel">
+    const { MetricChart, NowPill } = window.SetnelDesignSystem_525d6e;
+    const pts = Array.from({ length: 60 }, (_, i) => ({ t: `Jul 05 ${String(8 + Math.floor(i/6)).padStart(2,'0')}:${String((i%6)*10).padStart(2,'0')}`, value: 82 + Math.sin(i/5)*4 + (i > 48 ? (i-48)*1.6 : 0) }));
+    ReactDOM.createRoot(document.getElementById('chart')).render(
+      <MetricChart points={pts} unit="%" mean={82} band={{ lo: 73, hi: 91 }} threshold={{ value: 90, label: 'trigger 90%' }} fired={[54, 58]} height={200} />
+    );
+    ReactDOM.createRoot(document.getElementById('now')).render(
+      <>
+        <NowPill level="calm" count={0} />
+        <NowPill level="warn" count={2} />
+        <NowPill level="alert" count={3} />
+        <NowPill level="emergency" count={1} />
+      </>
+    );
+  </script>
+</body>
+</html>

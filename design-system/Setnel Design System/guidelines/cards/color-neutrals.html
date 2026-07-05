@@ -1,0 +1,25 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Surfaces & Borders" subtitle="White page, sunken washes, hairlines" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 20px; background: var(--panel-2); }
+  .row { display: flex; gap: 10px; }
+  .sw { flex: 1; border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; justify-content: flex-end; min-height: 96px; border: 1px solid var(--border); color: var(--ink); }
+  .sw .n { font: var(--font-mono-sm); color: var(--muted); }
+  .sw .h { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
+  .brd { flex: 1; min-height: 96px; border-radius: var(--radius); display: flex; align-items: flex-end; padding: 10px; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw" style="background: var(--white);"><span class="n">panel</span><span class="h">#FFFFFF</span></div>
+    <div class="sw" style="background: var(--panel-2);"><span class="n">panel-2</span><span class="h">#F7F8F9</span></div>
+    <div class="sw" style="background: var(--panel-3);"><span class="n">panel-3</span><span class="h">#F0F2F4</span></div>
+    <div class="brd" style="background: var(--white); border: 3px solid var(--border);"><span class="n" style="font:var(--font-mono-sm); color:var(--muted)">border · #E5E7EB</span></div>
+    <div class="brd" style="background: var(--white); border: 3px solid var(--border-strong);"><span class="n" style="font:var(--font-mono-sm); color:var(--muted)">strong · #D1D5DB</span></div>
+  </div>
+</body>
+</html>

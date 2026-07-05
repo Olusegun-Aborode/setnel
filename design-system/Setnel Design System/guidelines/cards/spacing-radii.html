@@ -1,0 +1,33 @@
+<!-- @dsCard group="Spacing" viewport="700x150" name="Radii & Elevation" subtitle="8px base radius + restrained hairline-first shadows" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 22px 24px; background: var(--panel-2); display: flex; gap: 30px; align-items: center; }
+  .group { display: flex; gap: 14px; align-items: flex-end; }
+  .box { width: 58px; height: 58px; background: var(--white); box-shadow: var(--ring-hairline); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; }
+  .cap { font-family: var(--font-mono); font-size: 9px; color: var(--muted); }
+  .sh { width: 78px; height: 58px; background: var(--white); border-radius: var(--radius-panel); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; }
+  .sep { width: 1px; align-self: stretch; background: var(--border); }
+</style>
+</head>
+<body>
+  <div class="group">
+    <div class="box" style="border-radius:var(--radius-badge)"><span class="cap">5·badge</span></div>
+    <div class="box" style="border-radius:var(--radius-sm)"><span class="cap">6·sm</span></div>
+    <div class="box" style="border-radius:var(--radius-btn)"><span class="cap">7·btn</span></div>
+    <div class="box" style="border-radius:var(--radius)"><span class="cap">8·base</span></div>
+    <div class="box" style="border-radius:var(--radius-panel)"><span class="cap">10·panel</span></div>
+    <div class="box" style="border-radius:var(--radius-card)"><span class="cap">12·card</span></div>
+  </div>
+  <div class="sep"></div>
+  <div class="group">
+    <div class="sh" style="box-shadow:var(--shadow-xs)"><span class="cap">xs</span></div>
+    <div class="sh" style="box-shadow:var(--shadow-sm)"><span class="cap">sm</span></div>
+    <div class="sh" style="box-shadow:var(--shadow-card)"><span class="cap">card</span></div>
+    <div class="sh" style="box-shadow:var(--shadow-pop)"><span class="cap">pop</span></div>
+  </div>
+</body>
+</html>

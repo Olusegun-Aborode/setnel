@@ -1,0 +1,79 @@
+<!-- @dsCard group="Components" viewport="700x330" name="Forms & Controls" subtitle="Button · Input · SegmentedControl · Chip" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: var(--panel-2); }
+  .grid { display: flex; flex-direction: column; gap: 18px; }
+  .block { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 15px 17px; }
+  .lbl { font: 11px/1 var(--font-sans); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 13px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="block">
+      <div class="lbl">Button</div>
+      <div class="row" id="btns"></div>
+    </div>
+    <div class="block">
+      <div class="lbl">Segmented control · Chip filters</div>
+      <div class="row" id="seg" style="margin-bottom:14px"></div>
+      <div class="row" id="chips"></div>
+    </div>
+    <div class="block">
+      <div class="lbl">Input</div>
+      <div class="row" id="inputs" style="align-items:flex-end"></div>
+    </div>
+  </div>
+
+  <script src="../../_ds_bundle.js"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel">
+    const { Button, SegmentedControl, Chip, Input } = window.SetnelDesignSystem_525d6e;
+
+    ReactDOM.createRoot(document.getElementById('btns')).render(
+      <>
+        <Button variant="primary">Acknowledge</Button>
+        <Button>Mute 1h</Button>
+        <Button variant="ghost">Runbooks</Button>
+        <Button variant="danger">False positive</Button>
+        <Button size="sm">Resolve</Button>
+        <Button variant="primary" disabled>Disabled</Button>
+      </>
+    );
+
+    function Seg() {
+      const [v, setV] = React.useState('collection');
+      return <SegmentedControl value={v} onChange={setV} options={[
+        { value: 'collection', label: 'Collection' },
+        { value: 'cat', label: 'Alerts · category' },
+        { value: 'proto', label: 'Alerts · protocol' },
+      ]} />;
+    }
+    ReactDOM.createRoot(document.getElementById('seg')).render(<Seg />);
+
+    ReactDOM.createRoot(document.getElementById('chips')).render(
+      <>
+        <Chip active>Active</Chip>
+        <Chip>All</Chip>
+        <Chip>Critical</Chip>
+        <Chip count={12}>Aave v3</Chip>
+        <Chip count={4}>Sui Lending</Chip>
+      </>
+    );
+
+    ReactDOM.createRoot(document.getElementById('inputs')).render(
+      <>
+        <Input label="Actor" placeholder="your name" defaultValue="olusegun" />
+        <Input label="Detector" mono placeholder="aave.v3.util" style={{ width: 180 }} />
+        <Input label="Threshold" invalid hint="Required" style={{ width: 120 }} />
+      </>
+    );
+  </script>
+</body>
+</html>

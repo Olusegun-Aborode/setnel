@@ -159,6 +159,36 @@ export async function getSla(days = 30): Promise<Sla> {
   };
 }
 
+// ── Detector quality (for Reports) ─────────────────────────────────────
+export type DetectorStat = {
+  detectorId: string;
+  dashboardId: string;
+  total: number;
+  falsePositives: number;
+  avgAckMin: number | null;
+};
+
+export async function getDetectorStats(days = 30): Promise<DetectorStat[]> {
+  const rows = (await sql`
+    SELECT detector_id AS "detectorId", dashboard_id AS "dashboardId",
+           count(*)::int AS total,
+           count(*) FILTER (WHERE false_positive)::int AS "falsePositives",
+           avg(EXTRACT(EPOCH FROM (acknowledged_at - opened_at))) FILTER (WHERE acknowledged_at IS NOT NULL) AS ack_s
+    FROM incidents
+    WHERE opened_at > now() - (${days} || ' days')::interval
+    GROUP BY detector_id, dashboard_id
+    ORDER BY total DESC
+    LIMIT 40
+  `) as { detectorId: string; dashboardId: string; total: number; falsePositives: number; ack_s: number | null }[];
+  return rows.map((r) => ({
+    detectorId: r.detectorId,
+    dashboardId: r.dashboardId,
+    total: r.total,
+    falsePositives: r.falsePositives,
+    avgAckMin: r.ack_s != null ? Math.round(r.ack_s / 60) : null,
+  }));
+}
+
 export type Summary = {
   activeCount: number;
   criticalActive: number;

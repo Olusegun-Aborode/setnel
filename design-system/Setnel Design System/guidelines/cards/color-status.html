@@ -1,0 +1,40 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Status & Collection Heat" subtitle="Health dots + the 0–3 collection heat ramp" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 20px; background: var(--surface-card); display: flex; gap: 28px; align-items: center; }
+  .lbl { font: var(--font-mono-sm); color: var(--muted); margin-bottom: 10px; }
+  .dots { display: flex; gap: 16px; }
+  .item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-2); }
+  .dot { width: 9px; height: 9px; border-radius: 999px; }
+  .heat { display: flex; gap: 4px; }
+  .cell { width: 26px; height: 26px; border-radius: 3px; }
+  .cap { font-family: var(--font-mono); font-size: 9px; color: var(--faint); text-align: center; display: block; margin-top: 5px; }
+  .sep { width: 1px; align-self: stretch; background: var(--border); }
+</style>
+</head>
+<body>
+  <div>
+    <div class="lbl">status</div>
+    <div class="dots">
+      <span class="item"><span class="dot" style="background:var(--status-healthy)"></span>healthy</span>
+      <span class="item"><span class="dot" style="background:var(--status-stale)"></span>stale</span>
+      <span class="item"><span class="dot" style="background:var(--status-down)"></span>down</span>
+      <span class="item"><span class="dot" style="background:var(--status-idle)"></span>idle</span>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div>
+    <div class="lbl">collection heat · 0 → 3</div>
+    <div class="heat">
+      <div><span class="cell" style="background:var(--lvl0)"></span><span class="cap">none</span></div>
+      <div><span class="cell" style="background:var(--lvl1)"></span><span class="cap">low</span></div>
+      <div><span class="cell" style="background:var(--lvl2)"></span><span class="cap">partial</span></div>
+      <div><span class="cell" style="background:var(--lvl3)"></span><span class="cap">full</span></div>
+    </div>
+  </div>
+</body>
+</html>

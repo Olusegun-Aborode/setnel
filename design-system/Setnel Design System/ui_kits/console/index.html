@@ -1,0 +1,172 @@
+<!-- @dsCard group="Console" viewport="1320x860" name="Setnel Console" subtitle="v2 app-shell — console, incidents+evidence, dashboards drill-down, detectors config, metrics, coverage, backtest, reports, escalation, settings, inbox, wallboard, ⌘K, mobile" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Setnel Console</title>
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  html, body { background: var(--white); height: 100%; }
+  #root { height: 100vh; }
+  .fab { position: fixed; right: 20px; bottom: 20px; z-index: 40; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; background: var(--ink); color: #fff; border: none; border-radius: var(--radius-btn); padding: 9px 13px; font: 13px var(--font-sans); box-shadow: var(--shadow-pop); }
+  .phone-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(10,10,10,0.45); display: grid; place-items: center; }
+  .phone { width: 390px; height: 780px; max-height: 92vh; background: var(--white); border-radius: 30px; border: 10px solid #111; overflow: hidden; box-shadow: var(--shadow-pop); position: relative; }
+  .phone-close { position: absolute; top: 14px; right: 14px; z-index: 5; background: rgba(255,255,255,0.9); border: 1px solid var(--border); border-radius: 999px; width: 28px; height: 28px; cursor: pointer; font-size: 15px; color: var(--ink); }
+  input[type=range] { accent-color: var(--ink); }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="../../_ds_bundle.js"></script>
+  <script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+  <script src="./data.js"></script>
+  <script type="text/babel" src="./Shell.jsx"></script>
+  <script type="text/babel" src="./TrendChart.jsx"></script>
+  <script type="text/babel" src="./HealthMatrix.jsx"></script>
+  <script type="text/babel" src="./EmptyState.jsx"></script>
+  <script type="text/babel" src="./IncidentFeed.jsx"></script>
+  <script type="text/babel" src="./Console.jsx"></script>
+  <script type="text/babel" src="./IncidentDetail.jsx"></script>
+  <script type="text/babel" src="./Dashboards.jsx"></script>
+  <script type="text/babel" src="./Detectors.jsx"></script>
+  <script type="text/babel" src="./Metrics.jsx"></script>
+  <script type="text/babel" src="./Coverage.jsx"></script>
+  <script type="text/babel" src="./Backtest.jsx"></script>
+  <script type="text/babel" src="./Reports.jsx"></script>
+  <script type="text/babel" src="./Runbooks.jsx"></script>
+  <script type="text/babel" src="./Escalation.jsx"></script>
+  <script type="text/babel" src="./Settings.jsx"></script>
+  <script type="text/babel" src="./Inbox.jsx"></script>
+  <script type="text/babel" src="./Wallboard.jsx"></script>
+  <script type="text/babel" src="./Mobile.jsx"></script>
+  <script type="text/babel" src="./Login.jsx"></script>
+  <script type="text/babel">
+    const W = window;
+    const { Shell, Console, IncidentDetail, Dashboards, DashboardDetail, Detectors, DetectorConfig,
+      Metrics, Coverage, Backtest, Reports, Runbooks, Escalation, Settings, Inbox, Wallboard, Mobile, Login, Icon } = W;
+    const { Panel, CommandPalette, NowPill } = W.SetnelDesignSystem_525d6e;
+    const D = W.SETNEL_DATA;
+    const nowLevel = (incs) => {
+      const a = incs.filter((i) => i.status === 'active');
+      if (a.some((i) => i.severity === 'emergency')) return 'emergency';
+      if (a.some((i) => i.severity === 'critical')) return 'alert';
+      if (a.length) return 'warn';
+      return 'calm';
+    };
+
+    function App() {
+      const [authed, setAuthed] = React.useState(false);
+      const [active, setActive] = React.useState('console');
+      const [openId, setOpenId] = React.useState(null);
+      const [openDash, setOpenDash] = React.useState(null);
+      const [openDet, setOpenDet] = React.useState(null);
+      const [incidents, setIncidents] = React.useState(D.INCIDENTS);
+      const [live, setLive] = React.useState(true);
+      const [seconds, setSeconds] = React.useState(0);
+      const [actor, setActor] = React.useState('olusegun');
+      const [range, setRange] = React.useState('24h');
+      const [dense, setDense] = React.useState(false);
+      const [toast, setToast] = React.useState(null);
+      const [phone, setPhone] = React.useState(false);
+      const [wall, setWall] = React.useState(false);
+      const [palette, setPalette] = React.useState(false);
+
+      React.useEffect(() => {
+        if (!live) return;
+        const t = setInterval(() => setSeconds((s) => (s >= 30 ? 0 : s + 1)), 1000);
+        return () => clearInterval(t);
+      }, [live]);
+
+      const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 1700); };
+      const mutate = (id, patch, msg) => { setIncidents((xs) => xs.map((i) => i.id === id ? { ...i, ...patch } : i)); if (msg) flash(msg); };
+      const onAck = (i) => mutate(i.id, { ackedBy: actor || 'team' }, `#${i.id} acknowledged`);
+      const onMute = (i, reason) => mutate(i.id, { muted: true, muteReason: reason }, `#${i.id} muted · ${reason || '1h'}`);
+      const onFp = (i) => mutate(i.id, { status: 'resolved', fp: true, resolvedBy: actor || 'team', resolvedAt: 'just now' }, `#${i.id} marked false positive`);
+
+      const openIncident = (i) => { setOpenId(i.id); setActive('detail'); setPhone(false); };
+      const openDashboard = (d) => { setOpenDash(d.id); setActive('dashboard'); };
+      const openDetector = (d) => { setOpenDet(d.id); setActive('detector'); };
+
+      if (!authed) return <Login onEnter={() => setAuthed(true)} />;
+
+      const incident = incidents.find((i) => i.id === openId);
+      const dash = D.DASHBOARDS.find((d) => d.id === openDash);
+      const det = D.DETECTORS.find((d) => d.id === openDet);
+      const activeCount = incidents.filter((i) => i.status === 'active').length;
+      const level = nowLevel(incidents);
+
+      // command palette
+      const commands = [
+        ...['console','incidents','dashboards','metrics','coverage','backtest','reports','detectors','escalation','settings'].map((id) => ({ group: 'Go to', label: id[0].toUpperCase() + id.slice(1), icon: <Icon name="corner-down-right" size={14} />, run: () => setActive(id) })),
+        ...D.DASHBOARDS.map((d) => ({ group: 'Dashboards', label: d.name, hint: `${d.checksToday} checks today`, run: () => openDashboard(d) })),
+        ...D.DETECTORS.map((d) => ({ group: 'Detectors', label: d.id, hint: d.z != null ? `z>${d.z} · ${d.minPct}%` : d.cadence, run: () => openDetector(d) })),
+        ...incidents.map((i) => ({ group: 'Incidents', label: i.message.slice(0, 46) + '…', hint: `#${i.id}`, run: () => openIncident(i) })),
+        { group: 'Actions', label: 'Open wallboard', icon: <Icon name="tv" size={14} />, kbd: '', run: () => setWall(true) },
+      ];
+
+      let view;
+      if (active === 'console') view = <Console incidents={incidents} onOpen={openIncident} onAck={onAck} onMute={onMute} onFp={onFp} onSeeAll={() => setActive('incidents')} />;
+      else if (active === 'incidents') view = (
+        <Panel title="Incidents" note={`${activeCount} active · filter, bulk-act, or use j/k/a/m`} divided flush>
+          <div style={{ padding: '16px 18px 20px' }}><W.IncidentFeed incidents={incidents} onOpen={openIncident} onAck={onAck} onMute={onMute} onFp={onFp} /></div>
+        </Panel>
+      );
+      else if (active === 'detail' && incident) view = <IncidentDetail i={incident} onBack={() => setActive('incidents')} onAck={onAck} onMute={onMute} onFp={onFp} onOpenDetector={openDetector} />;
+      else if (active === 'dashboards') view = <Dashboards onOpen={openDashboard} />;
+      else if (active === 'dashboard' && dash) view = <DashboardDetail dash={dash} onBack={() => setActive('dashboards')} onOpenIncident={openIncident} onOpenDetector={openDetector} />;
+      else if (active === 'detectors') view = <Detectors onOpen={openDetector} />;
+      else if (active === 'detector' && det) view = <DetectorConfig det={det} onBack={() => setActive('detectors')} />;
+      else if (active === 'metrics') view = <Metrics />;
+      else if (active === 'coverage') view = <Coverage onOpenDetector={openDetector} />;
+      else if (active === 'backtest') view = <Backtest />;
+      else if (active === 'reports') view = <Reports />;
+      else if (active === 'escalation') view = <Escalation />;
+      else if (active === 'settings') view = <Settings dense={dense} onDense={setDense} />;
+      else if (active === 'inbox') view = <Inbox onOpenIncident={openIncident} />;
+      else view = <Console incidents={incidents} onOpen={openIncident} onAck={onAck} onMute={onMute} onFp={onFp} onSeeAll={() => setActive('incidents')} />;
+
+      return (
+        <div>
+          <Shell active={active} onNav={setActive} live={live} seconds={seconds}
+            onToggleLive={() => { setLive((v) => !v); setSeconds(0); }} onSignOut={() => setAuthed(false)}
+            actor={actor} onActor={setActor} activeCount={activeCount} nowLevel={level}
+            range={range} onRange={setRange} dense={dense} onDense={setDense}
+            onWallboard={() => setWall(true)} onOpenPalette={() => setPalette(true)} onInbox={() => setActive('inbox')}>
+            {view}
+          </Shell>
+
+          <CommandPalette commands={commands} open={palette} onOpenChange={setPalette} />
+
+          <button className="fab" onClick={() => setPhone(true)}><Icon name="smartphone" size={15} color="#fff" /> Mobile view</button>
+
+          {phone ? (
+            <div className="phone-scrim" onClick={() => setPhone(false)}>
+              <div className="phone" onClick={(e) => e.stopPropagation()}>
+                <button className="phone-close" onClick={() => setPhone(false)}>×</button>
+                <Mobile incidents={incidents} onOpen={openIncident} />
+              </div>
+            </div>
+          ) : null}
+
+          {wall ? <Wallboard incidents={incidents} onClose={() => setWall(false)} /> : null}
+
+          {toast ? (
+            <div style={{ position: 'fixed', bottom: 22, left: '50%', transform: 'translateX(-50%)', zIndex: 70,
+              background: 'var(--ink)', color: '#fff', fontSize: 13, padding: '9px 15px', borderRadius: 'var(--radius-btn)', boxShadow: 'var(--shadow-pop)' }}>
+              {toast}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    setTimeout(() => W.lucide && W.lucide.createIcons(), 500);
+  </script>
+</body>
+</html>

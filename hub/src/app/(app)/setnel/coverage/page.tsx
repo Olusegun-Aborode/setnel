@@ -14,10 +14,7 @@ const MARK: Record<Cover, { ch: string; cls: string }> = {
 export default async function CoveragePage() {
   if (!(await isAuthed())) redirect('/login');
   return (
-    <div className="page">
-      <header className="topbar">
-        <div className="brand"><a href="/setnel" className="back">← Setnel</a><span className="brand-sub">Coverage map</span></div>
-      </header>
+    <>
       <section className="panel">
         <div className="panel-head"><h2>Detector coverage</h2><span className="panel-note">what each dashboard is — and isn’t — watched for</span></div>
         <div className="cov-wrap">
@@ -54,6 +51,6 @@ export default async function CoveragePage() {
           See <code>docs/ONBOARD_A_DASHBOARD.md</code>. Planned dashboards are pending onboarding by their owner.
         </p>
       </section>
-    </div>
+    </>
   );
 }

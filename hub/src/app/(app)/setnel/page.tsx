@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 import { isAuthed } from '@/lib/session';
 import {
   getIncidents,
@@ -12,10 +11,8 @@ import {
   type DashboardHealth,
   type IncidentWithDashboard,
 } from '@/lib/queries';
-import { buildDeepLink } from '@/lib/ingest';
 import { TrendChart } from './trend-chart';
-import { acknowledgeIncident, muteIncident, markFalsePositive, setActor } from './actions';
-import { LiveRefresh } from './live';
+import { acknowledgeIncident, muteIncident, markFalsePositive } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,35 +68,11 @@ export default async function SetnelConsole({
 
   const healthy = health.filter((h) => h.status === 'healthy').length;
   const collectingToday = health.filter((h) => h.checksToday > 0).length;
-  const actorName = (await cookies()).get('setnel_actor')?.value ?? '';
   const activeIncidents = incidents.filter((i) => i.status === 'active');
   const resolvedIncidents = incidents.filter((i) => i.status === 'resolved');
 
   return (
-    <div className="page">
-      <header className="topbar">
-        <div className="brand">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Datum Labs" className="brand-logo" width={28} height={28} />
-          <span className="brand-name">Setnel</span>
-          <span className="brand-sub">by Datum Labs · Risk Monitoring</span>
-        </div>
-        <div className="topbar-right">
-          <LiveRefresh intervalMs={30000} />
-          <a className="ghost-btn" href="/setnel/metrics">Metrics</a>
-          <a className="ghost-btn" href="/setnel/coverage">Coverage</a>
-          <a className="ghost-btn" href="/setnel/backtest">Backtest</a>
-          <a className="ghost-btn" href="/setnel/runbooks">Runbooks</a>
-          <form action={setActor} className="actor-form">
-            <input className="actor-input" name="name" defaultValue={actorName} placeholder="your name" maxLength={40} />
-            <button className="ghost-btn" type="submit">Set</button>
-          </form>
-          <form action="/login/logout" method="post">
-            <button className="ghost-btn" type="submit">Sign out</button>
-          </form>
-        </div>
-      </header>
-
+    <>
       {/* KPI strip */}
       <section className="kpis">
         <Kpi label="Dashboards" value={String(health.length)} sub="monitored" />
@@ -201,7 +174,7 @@ export default async function SetnelConsole({
           </details>
         ) : null}
       </section>
-    </div>
+    </>
   );
 }
 
