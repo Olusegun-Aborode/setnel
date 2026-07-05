@@ -3,7 +3,8 @@
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, LayoutGrid, Activity, Grid3x3, History,
-  BarChart3, BookOpen, type LucideIcon,
+  BarChart3, BookOpen, SlidersHorizontal, BellRing, Settings, Inbox,
+  type LucideIcon,
 } from 'lucide-react';
 
 type Item = { href: string; icon: LucideIcon; label: string; exact?: boolean };
@@ -20,6 +21,12 @@ const NAV: { section: string; items: Item[] }[] = [
   ] },
   { section: 'Respond', items: [
     { href: '/setnel/runbooks', icon: BookOpen, label: 'Runbooks' },
+    { href: '/setnel/inbox', icon: Inbox, label: 'Inbox' },
+  ] },
+  { section: 'Configure', items: [
+    { href: '/setnel/detectors', icon: SlidersHorizontal, label: 'Detectors' },
+    { href: '/setnel/escalation', icon: BellRing, label: 'Escalation' },
+    { href: '/setnel/settings', icon: Settings, label: 'Settings' },
   ] },
 ];
 

@@ -118,3 +118,52 @@ CREATE TABLE IF NOT EXISTS detector_mutes (
   muted_by     TEXT,
   PRIMARY KEY (dashboard_id, detector_id)
 );
+
+-- ── Configure surfaces (Detectors / Escalation / Settings / Inbox) ──
+
+-- Per-detector config: disable a rule entirely, or override its severity.
+CREATE TABLE IF NOT EXISTS detector_config (
+  dashboard_id      TEXT NOT NULL,
+  detector_id       TEXT NOT NULL,
+  enabled           BOOLEAN NOT NULL DEFAULT true,
+  severity_override TEXT,           -- null = use the detector's own severity
+  updated_by        TEXT,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (dashboard_id, detector_id)
+);
+
+-- Per-metric baseline threshold overrides, read by the anomaly runner.
+CREATE TABLE IF NOT EXISTS baseline_config (
+  metric_key TEXT PRIMARY KEY,
+  z          DOUBLE PRECISION,      -- null = global default
+  min_pct    DOUBLE PRECISION,
+  enabled    BOOLEAN NOT NULL DEFAULT true,
+  updated_by TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Escalation + on-call (single row, id = 1).
+CREATE TABLE IF NOT EXISTS escalation_config (
+  id                 INTEGER PRIMARY KEY DEFAULT 1,
+  escalate_after_min INTEGER NOT NULL DEFAULT 15,
+  oncall_name        TEXT,
+  oncall_contact     TEXT,
+  enabled            BOOLEAN NOT NULL DEFAULT true,
+  updated_by         TEXT,
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO escalation_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- Audit log — every human action (acks, mutes, config changes, ...).
+CREATE TABLE IF NOT EXISTS audit_log (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  actor      TEXT NOT NULL,
+  action     TEXT NOT NULL,
+  target     TEXT,
+  detail     TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS audit_log_time_idx ON audit_log (created_at DESC);
+
+-- Track when an incident was last escalated (for the escalation engine).
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMPTZ;

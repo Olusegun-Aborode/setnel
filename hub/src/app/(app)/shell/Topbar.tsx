@@ -13,6 +13,10 @@ const TITLES: { match: (p: string) => boolean; title: string; sub: string }[] = 
   { match: (p) => p.startsWith('/setnel/runbooks'), title: 'Runbooks', sub: 'What to do when each kind of alert fires' },
   { match: (p) => p.startsWith('/setnel/dashboards'), title: 'Dashboards', sub: 'All monitored surfaces and their collection health' },
   { match: (p) => p.startsWith('/setnel/reports'), title: 'Reports', sub: 'Response times, false-positive rate, noisiest detectors' },
+  { match: (p) => p.startsWith('/setnel/detectors'), title: 'Detectors', sub: 'View, tune, enable, and disable every detection rule' },
+  { match: (p) => p.startsWith('/setnel/escalation'), title: 'Escalation & on-call', sub: 'Who gets paged when an incident goes unacknowledged' },
+  { match: (p) => p.startsWith('/setnel/settings'), title: 'Settings', sub: 'Dashboards registry, integrations, and members' },
+  { match: (p) => p.startsWith('/setnel/inbox'), title: 'Inbox', sub: 'Everything that changed, and who changed it' },
   { match: (p) => p.startsWith('/wallboard'), title: 'Wallboard', sub: 'Read-only status board' },
   { match: () => true, title: 'Console', sub: 'Live risk overview across all monitored dashboards' },
 ];

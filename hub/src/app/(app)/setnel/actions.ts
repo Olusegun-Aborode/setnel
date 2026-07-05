@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { sql } from '@/lib/db';
 import { isAuthed } from '@/lib/session';
+import { audit } from '@/lib/admin';
 
 const ACTOR_COOKIE = 'setnel_actor';
 
@@ -31,6 +32,7 @@ export async function acknowledgeIncident(formData: FormData) {
   const who = await actor();
   await sql`UPDATE incidents SET acknowledged_at = now(), acknowledged_by = ${who} WHERE id = ${id} AND acknowledged_at IS NULL`;
   await sql`INSERT INTO incident_notes (incident_id, author, body) VALUES (${id}, ${who}, 'Acknowledged')`;
+  await audit(who, 'incident.ack', id);
   revalidatePath('/setnel');
   revalidatePath(`/setnel/incident/${id}`);
 }
@@ -42,6 +44,7 @@ export async function muteIncident(formData: FormData) {
   const who = await actor();
   await sql`UPDATE incidents SET muted_until = now() + (${minutes} || ' minutes')::interval WHERE id = ${id}`;
   await sql`INSERT INTO incident_notes (incident_id, author, body) VALUES (${id}, ${who}, ${'Muted for ' + minutes + ' min'})`;
+  await audit(who, 'incident.mute', id, minutes + 'm');
   revalidatePath('/setnel');
   revalidatePath(`/setnel/incident/${id}`);
 }
@@ -52,6 +55,7 @@ export async function markFalsePositive(formData: FormData) {
   const who = await actor();
   await sql`UPDATE incidents SET false_positive = true, status = 'resolved', resolved_at = now(), resolved_by = ${who} WHERE id = ${id}`;
   await sql`INSERT INTO incident_notes (incident_id, author, body) VALUES (${id}, ${who}, 'Marked false positive')`;
+  await audit(who, 'incident.false_positive', id);
   revalidatePath('/setnel');
   revalidatePath(`/setnel/incident/${id}`);
 }
@@ -62,6 +66,7 @@ export async function resolveIncident(formData: FormData) {
   const who = await actor();
   await sql`UPDATE incidents SET status = 'resolved', resolved_at = now(), resolved_by = ${who} WHERE id = ${id}`;
   await sql`INSERT INTO incident_notes (incident_id, author, body) VALUES (${id}, ${who}, 'Resolved manually')`;
+  await audit(who, 'incident.resolve', id);
   revalidatePath('/setnel');
   revalidatePath(`/setnel/incident/${id}`);
 }
@@ -78,6 +83,7 @@ export async function muteDetector(formData: FormData) {
     ON CONFLICT (dashboard_id, detector_id)
     DO UPDATE SET muted_until = EXCLUDED.muted_until, muted_by = EXCLUDED.muted_by
   `;
+  await audit(who, 'detector.mute', `${dashboardId}:${detectorId}`, minutes + 'm');
   revalidatePath('/setnel');
   revalidatePath(`/setnel/incident/${formData.get('id')}`);
 }

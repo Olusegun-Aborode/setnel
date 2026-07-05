@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runBaselines } from '@/lib/baseline';
 import { runCompound } from '@/lib/compound';
+import { runEscalations } from '@/lib/escalate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,5 +18,6 @@ export async function GET(req: Request) {
   }
   const baseline = await runBaselines();
   const compound = await runCompound();
-  return NextResponse.json({ ok: true, baseline, compound });
+  const escalation = await runEscalations();
+  return NextResponse.json({ ok: true, baseline, compound, escalation });
 }

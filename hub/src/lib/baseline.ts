@@ -11,6 +11,7 @@
 
 import { sql, type DashboardRow, type Severity } from './db';
 import { ingestBatch } from './ingest';
+import { getBaselineConfigMap } from './admin';
 import type { IncomingEvent } from './types';
 
 const MIN_SAMPLES = Number(process.env.SETNEL_BASELINE_MIN_SAMPLES || '20');
@@ -54,8 +55,14 @@ export async function runBaselines(): Promise<{ checked: number; anomalies: numb
 
   const results: BaselineResult[] = [];
   const eventsByDashboard = new Map<string, IncomingEvent[]>();
+  const overrides = await getBaselineConfigMap();
 
   for (const m of metrics) {
+    const ov = overrides.get(m.metric_key);
+    if (ov && ov.enabled === false) continue; // baseline disabled for this metric
+    const z_threshold = ov?.z ?? Z;
+    const min_pct = ov?.minPct ?? MIN_PCT;
+
     const rows = (await sql`
       SELECT value FROM metric_samples
       WHERE dashboard_id = ${m.dashboard_id} AND metric_key = ${m.metric_key} AND source = 'dashboard'
@@ -80,7 +87,7 @@ export async function runBaselines(): Promise<{ checked: number; anomalies: numb
     const z = (latest - mean) / stddev;
     const pctFromMean = ((latest - mean) / Math.abs(mean)) * 100;
 
-    if (Math.abs(z) > Z && Math.abs(pctFromMean) > MIN_PCT) {
+    if (Math.abs(z) > z_threshold && Math.abs(pctFromMean) > min_pct) {
       const meta = metricMeta(m.metric_key);
       const severity: Severity = Math.abs(z) >= 4 ? 'critical' : 'warning';
       const dir = z > 0 ? 'above' : 'below';

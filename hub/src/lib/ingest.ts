@@ -1,5 +1,6 @@
 import { sql, SEVERITY_RANK, type DashboardRow, type IncidentRow, type Severity } from './db';
 import { isTechnical, notifyTelegram } from './notify';
+import { getDetectorConfigMap } from './admin';
 import type { IncomingEvent } from './types';
 
 // Re-notify cadence for an UNACKNOWLEDGED incident that keeps firing. Critical/
@@ -33,10 +34,15 @@ export async function ingestBatch(
       WHERE dashboard_id = ${dashboard.id} AND muted_until > now()
     `) as { detector_id: string }[]).map((r) => r.detector_id),
   );
+  // Per-detector config: disabled detectors are dropped entirely; severity
+  // overrides replace the detector's own severity.
+  const detectorConfig = await getDetectorConfigMap();
 
   for (const ev of events) {
+    const cfg = detectorConfig.get(`${dashboard.id}:${ev.detectorId}`);
+    if (cfg && cfg.enabled === false) continue; // detector turned off from the console
     const fingerprint = ev.fingerprint ?? `${ev.detectorId}`;
-    const severity = ev.severity as Severity;
+    const severity = (cfg?.severityOverride ?? ev.severity) as Severity;
     const linkPath = ev.linkPath ?? null;
     // $ at risk, for ranking the feed. Detectors set payload.exposureUsd where
     // it's meaningful (a pool's supply, a market's size); null otherwise.
