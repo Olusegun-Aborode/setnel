@@ -1,0 +1,23 @@
+<!-- @dsCard group="Type" viewport="700x200" name="Body, Labels & Eyebrow" subtitle="Reading text, form labels, uppercase KPI kickers" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 22px 24px; background: var(--surface-card); }
+  .r { display: flex; align-items: baseline; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--border-hairline); }
+  .r:last-child { border-bottom: none; }
+  .meta { width: 108px; flex: none; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+  .body { font: var(--font-body); color: var(--text-primary); max-width: 460px; }
+  .bodysm { font: var(--font-body-sm); color: var(--text-secondary); }
+  .lbl { font: var(--font-label); color: var(--text-secondary); }
+</style>
+</head>
+<body>
+  <div class="r"><span class="meta">14 / 400</span><span class="body">Collection stalled on Aave v3 — no samples in 47 minutes against a ~5-min cadence.</span></div>
+  <div class="r"><span class="meta">13 / 400</span><span class="bodysm">Grey band marks the normal range, mean ±2σ, over the last 30 days.</span></div>
+  <div class="r"><span class="meta">12 / 500</span><span class="lbl">Time to acknowledge</span></div>
+  <div class="r"><span class="meta">11 / 600</span><span class="eyebrow">Active incidents</span></div>
+</body>
+</html>

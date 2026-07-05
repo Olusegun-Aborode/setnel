@@ -1,0 +1,26 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Ink & Action" subtitle="Monochrome ink — text and the single action color" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 20px; background: var(--surface-card); }
+  .row { display: flex; gap: 10px; }
+  .sw { flex: 1; border-radius: var(--radius); padding: 12px 12px 10px; display: flex; flex-direction: column; justify-content: flex-end; min-height: 96px; box-shadow: var(--ring-hairline); }
+  .sw .n { font: var(--font-mono-sm); opacity: 0.9; }
+  .sw .h { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
+  .on-dark { color: #fff; }
+  .on-light { color: var(--ink); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw on-dark" style="background: var(--ink); box-shadow:none;"><span class="n">ink · action</span><span class="h">#0A0A0A</span></div>
+    <div class="sw on-dark" style="background: var(--ink-2);"><span class="n">ink-2</span><span class="h">#3F4651</span></div>
+    <div class="sw on-dark" style="background: var(--muted);"><span class="n">muted</span><span class="h">#6B7280</span></div>
+    <div class="sw on-light" style="background: var(--faint);"><span class="n">faint</span><span class="h">#9AA3AF</span></div>
+    <div class="sw on-light" style="background: var(--white);"><span class="n">white</span><span class="h">#FFFFFF</span></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Severity Signals" subtitle="info · warning · critical · emergency (10% tints)" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 20px; background: var(--surface-card); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .sev { border-radius: var(--radius); padding: 12px; }
+  .head { display: flex; align-items: center; gap: 7px; }
+  .dot { width: 9px; height: 9px; border-radius: 999px; }
+  .name { font-size: 12px; font-weight: 600; text-transform: capitalize; }
+  .badge { display: inline-block; margin-top: 11px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+  .hex { display: block; margin-top: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="sev" style="background:var(--info-bg)">
+      <div class="head"><span class="dot" style="background:var(--info)"></span><span class="name" style="color:var(--info)">info</span></div>
+      <span class="badge" style="color:var(--info); background:var(--white)">info</span>
+      <span class="hex">#2563EB</span>
+    </div>
+    <div class="sev" style="background:var(--warning-bg)">
+      <div class="head"><span class="dot" style="background:var(--warning)"></span><span class="name" style="color:var(--warning)">warning</span></div>
+      <span class="badge" style="color:var(--warning); background:var(--white)">warning</span>
+      <span class="hex">#B45309</span>
+    </div>
+    <div class="sev" style="background:var(--critical-bg)">
+      <div class="head"><span class="dot" style="background:var(--critical)"></span><span class="name" style="color:var(--critical)">critical</span></div>
+      <span class="badge" style="color:var(--critical); background:var(--white)">critical</span>
+      <span class="hex">#DC2626</span>
+    </div>
+    <div class="sev" style="background:var(--emergency-bg)">
+      <div class="head"><span class="dot" style="background:var(--emergency)"></span><span class="name" style="color:var(--emergency)">emergency</span></div>
+      <span class="badge" style="color:var(--emergency); background:var(--white)">emergency</span>
+      <span class="hex">#B91C1C</span>
+    </div>
+  </div>
+</body>
+</html>

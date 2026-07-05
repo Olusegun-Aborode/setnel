@@ -1,0 +1,78 @@
+<!-- @dsCard group="Components" viewport="700x250" name="Feedback & Status" subtitle="Badge · StatusDot · LiveIndicator" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: var(--panel-2); }
+  .grid { display: flex; flex-direction: column; gap: 18px; }
+  .block { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 15px 17px; }
+  .lbl { font: 11px/1 var(--font-sans); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 13px; }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="block">
+      <div class="lbl">Badge · severity + status</div>
+      <div class="row" id="badges"></div>
+    </div>
+    <div class="block">
+      <div class="lbl">StatusDot · dashboard health</div>
+      <div class="row" id="dots"></div>
+    </div>
+    <div class="block">
+      <div class="lbl">LiveIndicator</div>
+      <div class="row" id="live"></div>
+    </div>
+  </div>
+
+  <script src="../../_ds_bundle.js"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel">
+    const { Badge, StatusDot, LiveIndicator } = window.SetnelDesignSystem_525d6e;
+
+    ReactDOM.createRoot(document.getElementById('badges')).render(
+      <>
+        <Badge variant="info">info</Badge>
+        <Badge variant="warning">warning</Badge>
+        <Badge variant="critical">critical</Badge>
+        <Badge variant="emergency">emergency</Badge>
+        <Badge variant="resolved">resolved</Badge>
+        <Badge variant="count">×12</Badge>
+        <Badge>muted</Badge>
+        <Badge variant="exposure">$1.2M at risk</Badge>
+      </>
+    );
+
+    ReactDOM.createRoot(document.getElementById('dots')).render(
+      <>
+        <StatusDot status="healthy" showLabel />
+        <StatusDot status="stale" showLabel />
+        <StatusDot status="down" showLabel />
+        <StatusDot status="idle" showLabel />
+      </>
+    );
+
+    function Live() {
+      const [on, setOn] = React.useState(true);
+      const [s, setS] = React.useState(8);
+      React.useEffect(() => {
+        if (!on) return;
+        const t = setInterval(() => setS(v => v + 1), 1000);
+        return () => clearInterval(t);
+      }, [on]);
+      return (
+        <>
+          <LiveIndicator live={on} seconds={s} onToggle={() => { setOn(v => !v); setS(0); }} />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--muted)' }}>click to toggle</span>
+        </>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('live')).render(<Live />);
+  </script>
+</body>
+</html>

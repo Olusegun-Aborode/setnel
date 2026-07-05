@@ -1,5 +1,7 @@
 /* Setnel Hub — internal monitoring console.
-   Light, institutional, monochrome. White default. Dense, precise, no chrome. */
+   Design tokens + fonts come from the Setnel Design System (v2), imported below.
+   The :root overrides that follow bridge the app's variable names to it. */
+@import './ds/styles.css';
 
 :root {
   --bg: #ffffff;
@@ -25,8 +27,9 @@
   --lvl3: #1f9d57;
 
   --radius: 8px;
-  --mono: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
+  /* Bridge to the design system's Geist typefaces. */
+  --mono: var(--font-mono);
+  --sans: var(--font-sans);
 }
 
 * { box-sizing: border-box; }

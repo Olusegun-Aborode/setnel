@@ -1,0 +1,44 @@
+<!-- @dsCard group="Components" viewport="700x230" name="Toggles & Time Range" subtitle="Switch · Checkbox · TimeRange" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 24px; background: var(--panel-2); }
+  .grid { display: flex; flex-direction: column; gap: 16px; }
+  .block { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 15px 17px; }
+  .lbl { font: 11px/1 var(--font-sans); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 13px; }
+  .row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="block"><div class="lbl">Switch · Checkbox</div><div class="row" id="toggles"></div></div>
+    <div class="block"><div class="lbl">TimeRange</div><div class="row" id="tr"></div></div>
+  </div>
+  <script src="../../_ds_bundle.js"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel">
+    const { Switch, Checkbox, TimeRange } = window.SetnelDesignSystem_525d6e;
+    function Toggles() {
+      const [a, setA] = React.useState(true);
+      const [b, setB] = React.useState(false);
+      const [c, setC] = React.useState(true);
+      return (
+        <>
+          <Switch checked={a} onChange={setA} label="Detector enabled" />
+          <Switch checked={b} onChange={setB} label="Dense mode" />
+          <Checkbox checked={c} onChange={setC} label="Select row" />
+          <Checkbox indeterminate checked={false} onChange={() => {}} label="Select all" />
+        </>
+      );
+    }
+    function TR() { const [v, setV] = React.useState('24h'); return <TimeRange value={v} onChange={setV} />; }
+    ReactDOM.createRoot(document.getElementById('toggles')).render(<Toggles />);
+    ReactDOM.createRoot(document.getElementById('tr')).render(<TR />);
+  </script>
+</body>
+</html>

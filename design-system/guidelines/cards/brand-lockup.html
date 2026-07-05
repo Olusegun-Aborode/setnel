@@ -1,0 +1,31 @@
+<!-- @dsCard group="Brand" viewport="700x150" name="Wordmark Lockup" subtitle="Datum Labs mark + Setnel wordmark" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 0; background: var(--white); height: 150px; display: flex; align-items: center; justify-content: center; gap: 48px; }
+  .lockup { display: flex; align-items: center; gap: 11px; }
+  .mark { width: 34px; height: 34px; border-radius: 8px; display: block; }
+  .type { line-height: 1; }
+  .name { font: var(--weight-bold) 24px/1 var(--font-sans); letter-spacing: -0.02em; color: var(--ink); }
+  .sub { display: block; margin-top: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .sep { width: 1px; height: 70px; background: var(--border); }
+  .swatch { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .chip { width: 40px; height: 40px; border-radius: 8px; background: var(--brand); }
+  .cap { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="lockup">
+    <img class="mark" src="../../assets/logo.png" alt="Datum Labs" />
+    <div class="type">
+      <span class="name">Setnel</span>
+      <span class="sub">by Datum Labs · risk monitoring</span>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div class="swatch"><span class="chip"></span><span class="cap">brand · #4F6EF2</span></div>
+</body>
+</html>

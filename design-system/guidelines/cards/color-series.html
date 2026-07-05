@@ -1,0 +1,34 @@
+<!-- @dsCard group="Colors" viewport="700x140" name="Data-Viz Series" subtitle="10-line palette for multi-series trend charts" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  body { margin: 0; padding: 20px; background: var(--surface-card); }
+  .strip { display: flex; height: 40px; border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--ring-hairline); }
+  .strip span { flex: 1; }
+  .keys { display: grid; grid-template-columns: repeat(10, 1fr); margin-top: 12px; gap: 4px; }
+  .k { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); }
+  .k i { width: 10px; height: 10px; border-radius: 2px; }
+  svg { display: block; margin-top: 14px; }
+</style>
+</head>
+<body>
+  <div class="strip">
+    <span style="background:var(--series-1)"></span><span style="background:var(--series-2)"></span><span style="background:var(--series-3)"></span><span style="background:var(--series-4)"></span><span style="background:var(--series-5)"></span><span style="background:var(--series-6)"></span><span style="background:var(--series-7)"></span><span style="background:var(--series-8)"></span><span style="background:var(--series-9)"></span><span style="background:var(--series-10)"></span>
+  </div>
+  <div class="keys">
+    <span class="k"><i style="background:var(--series-1)"></i>01</span>
+    <span class="k"><i style="background:var(--series-2)"></i>02</span>
+    <span class="k"><i style="background:var(--series-3)"></i>03</span>
+    <span class="k"><i style="background:var(--series-4)"></i>04</span>
+    <span class="k"><i style="background:var(--series-5)"></i>05</span>
+    <span class="k"><i style="background:var(--series-6)"></i>06</span>
+    <span class="k"><i style="background:var(--series-7)"></i>07</span>
+    <span class="k"><i style="background:var(--series-8)"></i>08</span>
+    <span class="k"><i style="background:var(--series-9)"></i>09</span>
+    <span class="k"><i style="background:var(--series-10)"></i>10</span>
+  </div>
+</body>
+</html>
