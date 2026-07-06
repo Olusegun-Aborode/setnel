@@ -2,10 +2,11 @@
 
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { checkPassword, createSession, isAuthed } from '@/lib/session';
-import { getUserByEmail, createLoginToken } from '@/lib/users';
+import { checkPassword, createSession } from '@/lib/session';
+import { resolveAllowedUser, createLoginToken } from '@/lib/users';
 import { emailConfigured, sendMail } from '@/lib/notify';
 
+// Break-glass: shared team password → team session (admin fallback).
 export async function login(formData: FormData) {
   const password = String(formData.get('password') ?? '');
   if (!checkPassword(password)) {
@@ -15,14 +16,15 @@ export async function login(formData: FormData) {
   redirect('/setnel');
 }
 
-// Request a magic link to sign in as a specific (already-registered) user.
-// Behind the team gate. If email isn't configured, the link is shown on-page as
-// a bootstrap fallback (the app is already password-protected).
+// Primary sign-in: request a magic link. Public (email IS the front door), but
+// only whitelisted emails get a link. If email isn't configured yet, the link is
+// shown on-page as a bootstrap fallback.
 export async function requestMagicLink(formData: FormData) {
-  if (!(await isAuthed())) redirect('/login');
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
-  const user = await getUserByEmail(email);
-  if (!user) redirect('/login/identify?error=unknown');
+  if (!email.includes('@')) redirect('/login?denied=1');
+
+  const user = await resolveAllowedUser(email);
+  if (!user) redirect('/login?denied=1');
 
   const token = await createLoginToken(user.id);
   const h = await headers();
@@ -31,9 +33,8 @@ export async function requestMagicLink(formData: FormData) {
   const link = `${proto}://${host}/login/verify?token=${token}`;
 
   if (emailConfigured()) {
-    await sendMail('Sign in to Setnel', `Click to sign in as ${user.name}:\n\n${link}\n\nThis link expires in 20 minutes.`, [user.email]);
-    redirect('/login/identify?sent=1');
+    await sendMail('Sign in to Setnel', `Hi ${user.name},\n\nClick to sign in to Setnel:\n\n${link}\n\nThis link expires in 20 minutes. If you didn't request it, ignore this email.`, [user.email]);
+    redirect('/login?sent=1');
   }
-  // Bootstrap: no email provider — surface the link directly.
-  redirect(`/login/identify?link=${encodeURIComponent(link)}`);
+  redirect(`/login?link=${encodeURIComponent(link)}`);
 }

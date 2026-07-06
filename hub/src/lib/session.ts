@@ -81,13 +81,13 @@ export async function clearUserSession(): Promise<void> {
   jar.delete(UID_COOKIE);
 }
 
-export async function isAuthed(): Promise<boolean> {
+// Break-glass team password session (admin fallback).
+export async function isTeamAuthed(): Promise<boolean> {
   const jar = await cookies();
   const raw = jar.get(COOKIE)?.value;
   if (!raw) return false;
   const [issuedAt, mac] = raw.split('.');
   if (!issuedAt || !mac) return false;
-  // Verify signature.
   const expected = sign(issuedAt);
   const a = Buffer.from(expected, 'hex');
   let b: Buffer;
@@ -97,7 +97,14 @@ export async function isAuthed(): Promise<boolean> {
     return false;
   }
   if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
-  // Check age.
   const age = Date.now() - Number(issuedAt);
   return Number.isFinite(age) && age >= 0 && age < MAX_AGE_MS;
+}
+
+// The app gate: access is granted to a verified user (magic-link identity) OR
+// the break-glass team password. The primary path is the whitelisted email
+// sign-in; the team password is a hidden admin fallback.
+export async function isAuthed(): Promise<boolean> {
+  if ((await getSessionUserId()) != null) return true;
+  return isTeamAuthed();
 }

@@ -43,11 +43,11 @@ export function Topbar({ criticalActive, activeCount, userName }: { criticalActi
         <a className="tb-icon" href="/wallboard" title="Wallboard"><Tv size={15} strokeWidth={1.6} /></a>
         <LiveRefresh intervalMs={30000} />
         {userName ? (
-          <a className="tb-identity" href="/login/identify" title="Switch identity">
+          <a className="tb-identity" href="/login" title="Switch identity">
             <UserCircle2 size={16} strokeWidth={1.6} /> {userName}
           </a>
         ) : (
-          <a className="tb-identity tb-identity-anon" href="/login/identify" title="Sign in to attribute your actions">
+          <a className="tb-identity tb-identity-anon" href="/login" title="Sign in to attribute your actions">
             <UserCircle2 size={16} strokeWidth={1.6} /> Sign in
           </a>
         )}

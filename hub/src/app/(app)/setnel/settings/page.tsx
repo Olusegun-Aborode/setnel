@@ -30,7 +30,7 @@ export default async function SettingsPage() {
       <section className="panel">
         <div className="panel-head"><h2>Team &amp; access</h2><span className="panel-note">{users.length} users · roles are attribution today (enforcement lands with SSO)</span></div>
         {users.length === 0 ? (
-          <p className="panel-note">No users yet. Add one below, then they sign in via <a className="card-detail" href="/login/identify">magic link</a> to get verified attribution.</p>
+          <p className="panel-note">No users yet. Add one below, then they sign in via <a className="card-detail" href="/login">magic link</a> to get verified attribution.</p>
         ) : (
           <div className="cov-wrap">
             <table className="cov-table">

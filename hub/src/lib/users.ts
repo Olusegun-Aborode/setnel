@@ -29,6 +29,27 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   return r[0] ?? null;
 }
 
+// Bootstrap allow-list from env — these emails can always sign in as Owner even
+// before anyone has been added in Settings (solves the chicken-and-egg).
+export function adminEmails(): string[] {
+  return (process.env.SETNEL_ADMIN_EMAILS ?? '').split(/[\s,;]+/).map((s) => s.trim().toLowerCase()).filter((s) => s.includes('@'));
+}
+
+/**
+ * Resolve an email against the whitelist for sign-in. Returns the user if they
+ * are allowed (creating an Owner on first sight for env admins), else null.
+ * The users table IS the whitelist; adminEmails() is the bootstrap seed.
+ */
+export async function resolveAllowedUser(email: string): Promise<User | null> {
+  const clean = email.trim().toLowerCase();
+  const existing = await getUserByEmail(clean);
+  if (existing) return existing;
+  if (adminEmails().includes(clean)) {
+    return upsertUser({ email: clean, name: clean.split('@')[0], role: 'Owner' });
+  }
+  return null;
+}
+
 export async function upsertUser(input: { email: string; name: string; role?: string }): Promise<User> {
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim().slice(0, 80) || email;
