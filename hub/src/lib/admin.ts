@@ -1,4 +1,5 @@
 import { sql } from './db';
+import { getHealthMatrix, type DashboardHealth } from './queries';
 
 // Central audit — every human action records here (shown on the Inbox page).
 export async function audit(actor: string, action: string, target?: string, detail?: string): Promise<void> {
@@ -217,6 +218,36 @@ export async function getActiveCountsByDashboard(): Promise<Map<string, number>>
     SELECT dashboard_id, count(*)::int AS n FROM incidents WHERE status = 'active' GROUP BY dashboard_id
   `) as { dashboard_id: string; n: number }[];
   return new Map(rows.map((r) => [r.dashboard_id, r.n]));
+}
+
+// ── Rich per-dashboard overview for the Dashboards tab ──
+export type DashboardOverview = DashboardHealth & {
+  activeIncidents: number; incidents30d: number; metricCount: number; detectorCount: number; criticalActive: number;
+};
+export async function getDashboardsOverview(): Promise<DashboardOverview[]> {
+  const [health, active, registry] = await Promise.all([
+    getHealthMatrix(), getActiveCountsByDashboard(), getDetectorRegistry(),
+  ]);
+  const inc30 = new Map(((await sql`
+    SELECT dashboard_id, count(*)::int AS n FROM incidents WHERE opened_at > now() - interval '30 days' GROUP BY dashboard_id
+  `) as { dashboard_id: string; n: number }[]).map((r) => [r.dashboard_id, r.n]));
+  const crit = new Map(((await sql`
+    SELECT dashboard_id, count(*)::int AS n FROM incidents WHERE status = 'active' AND severity IN ('critical','emergency') GROUP BY dashboard_id
+  `) as { dashboard_id: string; n: number }[]).map((r) => [r.dashboard_id, r.n]));
+  const metricCount = new Map(((await sql`
+    SELECT dashboard_id, count(DISTINCT metric_key)::int AS n FROM metric_samples WHERE source = 'dashboard' GROUP BY dashboard_id
+  `) as { dashboard_id: string; n: number }[]).map((r) => [r.dashboard_id, r.n]));
+  const detCount = new Map<string, number>();
+  for (const d of registry) detCount.set(d.dashboardId, (detCount.get(d.dashboardId) ?? 0) + 1);
+
+  return health.map((h) => ({
+    ...h,
+    activeIncidents: active.get(h.id) ?? 0,
+    criticalActive: crit.get(h.id) ?? 0,
+    incidents30d: inc30.get(h.id) ?? 0,
+    metricCount: metricCount.get(h.id) ?? 0,
+    detectorCount: detCount.get(h.id) ?? 0,
+  }));
 }
 
 // ── Weekly report series (Reports tab trends + CSV export) ──

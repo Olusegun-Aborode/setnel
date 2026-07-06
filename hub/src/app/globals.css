@@ -515,3 +515,15 @@ h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
 .signin-break summary::before { content: '▸ '; color: var(--faint); }
 .signin-break[open] summary::before { content: '▾ '; }
 .signin-foot { font-size: 11px; color: var(--faint); }
+
+/* ── Clickable KPI cards + SLA target coloring ── */
+.kpi-link { text-decoration: none; color: inherit; display: block; transition: border-color 0.12s, box-shadow 0.12s; }
+.kpi-link:hover { border-color: var(--ink); box-shadow: 0 2px 8px rgba(10,10,10,0.05); }
+.sla-bad b { color: var(--critical); }
+
+/* ── Richer Dashboards table ── */
+.dash-table td, .dash-table th { white-space: nowrap; }
+.dash-name-link { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 600; text-decoration: none; }
+.dash-name-link:hover { color: var(--brand, #4f6ef2); }
+.m-cells-inline { display: inline-flex; gap: 2px; vertical-align: middle; }
+.m-cells-inline .cell { width: 8px; height: 14px; border-radius: 2px; }

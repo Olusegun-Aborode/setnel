@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { timeAgo } from '@/lib/format';
 import { bulkAck, bulkMute, bulkResolve } from '../actions';
 
 export type TriageIncident = {
   id: string; dashboardName: string; severity: string; message: string;
-  detectorId: string; acked: boolean; muted: boolean; exposureUsd: number | null;
+  detectorId: string; acked: boolean; ackedBy: string | null; muted: boolean;
+  exposureUsd: number | null; openedAt: string; eventCount: number;
 };
 
 const SEV: Record<string, string> = { info: 'sev-info', warning: 'sev-warning', critical: 'sev-critical', emergency: 'sev-emergency' };
@@ -101,12 +103,13 @@ export function IncidentTriage({ incidents }: { incidents: TriageIncident[] }) {
               <div className="card-top">
                 <span className="card-dash">{i.dashboardName}</span>
                 <span className={`badge ${SEV[i.severity] ?? ''}`}>{i.severity}</span>
-                {i.acked ? <span className="badge badge-resolved">ack</span> : null}
+                {i.acked ? <span className="badge badge-resolved">ack{i.ackedBy ? ` ${i.ackedBy}` : ''}</span> : null}
                 {i.muted ? <span className="badge badge-count">muted</span> : null}
+                {i.eventCount > 1 ? <span className="badge badge-count">×{i.eventCount}</span> : null}
                 {i.exposureUsd ? <span className="badge badge-exp">{fmtUsd(i.exposureUsd)} at risk</span> : null}
               </div>
               <a className="card-msg card-link" href={`/setnel/incident/${i.id}`}>{i.message}</a>
-              <div className="card-meta"><span>{i.detectorId}</span><span>·</span><a href={`/setnel/incident/${i.id}`} className="card-detail">details →</a></div>
+              <div className="card-meta"><span>{i.detectorId}</span><span>·</span><span>opened {timeAgo(i.openedAt)}</span><span>·</span><a href={`/setnel/incident/${i.id}`} className="card-detail">details →</a></div>
             </div>
           </li>
         ))}
