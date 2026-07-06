@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
-import { getDetectorRegistry, getBaselineMetrics } from '@/lib/admin';
-import { getIncidents, getMetricsOverview } from '@/lib/queries';
+import { getDetectorRegistry, getBaselineMetrics, getBaselineFpCounts } from '@/lib/admin';
+import { getIncidents, getMetricsForDashboard } from '@/lib/queries';
 import { setDetectorEnabled, setDetectorSeverity } from '../../../config-actions';
 import { muteDetector } from '../../../actions';
 import { IncidentCard, timeAgo } from '../../../incident-card';
@@ -16,11 +16,12 @@ export default async function DetectorDetail({ params }: { params: Promise<{ das
   const { dashboardId, detectorId: raw } = await params;
   const detectorId = decodeURIComponent(raw);
 
-  const [registry, incidents, metrics, baselines] = await Promise.all([
+  const [registry, incidents, metrics, baselines, fpCounts] = await Promise.all([
     getDetectorRegistry(),
     getIncidents({ dashboardId, status: 'all' }),
-    getMetricsOverview(400),
+    getMetricsForDashboard(dashboardId),
     getBaselineMetrics(),
+    getBaselineFpCounts(dashboardId),
   ]);
 
   const d = registry.find((x) => x.dashboardId === dashboardId && x.detectorId === detectorId);
@@ -31,14 +32,16 @@ export default async function DetectorDetail({ params }: { params: Promise<{ das
   const fpRate = d.total > 0 ? Math.round((d.falsePositives / d.total) * 100) : 0;
   const isBaseline = detectorId === 'baseline.anomaly';
 
-  // Build the tuner's per-metric input from this dashboard's history + saved overrides.
+  // Build the tuner's per-metric input: this dashboard's history, saved overrides,
+  // and how many false positives each metric has produced (drives suggestions).
   const savedByKey = new Map(baselines.map((b) => [b.metricKey, b]));
   const tunerMetrics = isBaseline
-    ? metrics.filter((m) => m.dashboardId === dashboardId).map((m) => ({
+    ? metrics.map((m) => ({
         metricKey: m.metricKey,
         values: m.points.map((p) => p.value),
         savedZ: savedByKey.get(m.metricKey)?.z ?? null,
         savedMinPct: savedByKey.get(m.metricKey)?.minPct ?? null,
+        fpCount: fpCounts.get(m.metricKey) ?? 0,
       }))
     : [];
 

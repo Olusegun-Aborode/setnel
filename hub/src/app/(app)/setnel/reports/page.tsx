@@ -1,21 +1,27 @@
 import { redirect } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
 import { getSla, getDetectorStats } from '@/lib/queries';
-import { getWeeklyReport, type WeekRow } from '@/lib/admin';
+import { getWeeklyReport, getSloTargets, type WeekRow } from '@/lib/admin';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ReportsPage() {
   if (!(await isAuthed())) redirect('/login');
-  const [sla, detectors, weeks] = await Promise.all([getSla(30), getDetectorStats(30), getWeeklyReport(12)]);
+  const [sla, detectors, weeks, slo] = await Promise.all([getSla(30), getDetectorStats(30), getWeeklyReport(12), getSloTargets()]);
+
+  // Tone each metric against its SLO target (lower-is-better for time/FP).
+  const ackTone = sla.ackRatePct >= slo.ackRateTarget ? 'good' : 'bad';
+  const ttaTone = sla.avgTimeToAckMin == null ? '' : sla.avgTimeToAckMin <= slo.mttaTargetMin ? 'good' : 'bad';
+  const ttrTone = sla.avgTimeToResolveMin == null ? '' : sla.avgTimeToResolveMin <= slo.mttrTargetMin ? 'good' : 'bad';
+  const fpTone = sla.falsePositivePct <= slo.fpRateTarget ? 'good' : 'bad';
 
   return (
     <>
       <section className="kpis">
-        <div className="kpi"><div className="kpi-label">Ack rate</div><div className="kpi-value">{sla.ackRatePct}%</div><div className="kpi-sub">last 30 days</div></div>
-        <div className="kpi"><div className="kpi-label">Time to ack</div><div className="kpi-value">{sla.avgTimeToAckMin == null ? '—' : `${sla.avgTimeToAckMin}m`}</div><div className="kpi-sub">average</div></div>
-        <div className="kpi"><div className="kpi-label">Time to resolve</div><div className="kpi-value">{sla.avgTimeToResolveMin == null ? '—' : `${sla.avgTimeToResolveMin}m`}</div><div className="kpi-sub">average</div></div>
-        <div className={`kpi ${sla.falsePositivePct > 20 ? 'kpi-warn' : 'kpi-good'}`}><div className="kpi-label">False positives</div><div className="kpi-value">{sla.falsePositivePct}%</div><div className="kpi-sub">{sla.total} incidents</div></div>
+        <div className={`kpi kpi-${ackTone}`}><div className="kpi-label">Ack rate</div><div className="kpi-value">{sla.ackRatePct}%</div><div className="kpi-sub">target ≥ {slo.ackRateTarget}%</div></div>
+        <div className={`kpi ${ttaTone ? `kpi-${ttaTone}` : ''}`}><div className="kpi-label">Time to ack</div><div className="kpi-value">{sla.avgTimeToAckMin == null ? '—' : `${sla.avgTimeToAckMin}m`}</div><div className="kpi-sub">target ≤ {slo.mttaTargetMin}m</div></div>
+        <div className={`kpi ${ttrTone ? `kpi-${ttrTone}` : ''}`}><div className="kpi-label">Time to resolve</div><div className="kpi-value">{sla.avgTimeToResolveMin == null ? '—' : `${sla.avgTimeToResolveMin}m`}</div><div className="kpi-sub">target ≤ {slo.mttrTargetMin}m</div></div>
+        <div className={`kpi kpi-${fpTone}`}><div className="kpi-label">False positives</div><div className="kpi-value">{sla.falsePositivePct}%</div><div className="kpi-sub">ceiling {slo.fpRateTarget}% · {sla.total} incidents</div></div>
       </section>
 
       <section className="panel">

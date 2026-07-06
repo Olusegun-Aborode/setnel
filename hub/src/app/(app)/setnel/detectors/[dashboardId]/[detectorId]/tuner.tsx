@@ -2,36 +2,26 @@
 
 import { useState } from 'react';
 import { setBaselineThreshold } from '../../../config-actions';
+import { backtestFires, suggestZ } from '@/lib/detect';
 
-type Metric = { metricKey: string; values: number[]; savedZ: number | null; savedMinPct: number | null };
+type Metric = { metricKey: string; values: number[]; savedZ: number | null; savedMinPct: number | null; fpCount: number };
 
 const MIN_SAMPLES = 20;
-
-// Replay the adaptive rule over history at the chosen thresholds — the same
-// algorithm the live runner uses, run in the browser so the fire count updates
-// as you drag. Window bounds how much prior history each point sees.
-function fireCount(values: number[], z: number, minPct: number, window: number): number {
-  let fired = 0;
-  for (let i = MIN_SAMPLES; i < values.length; i++) {
-    const hist = values.slice(Math.max(0, i - window), i);
-    const mean = hist.reduce((a, b) => a + b, 0) / hist.length;
-    const sd = Math.sqrt(hist.reduce((a, b) => a + (b - mean) ** 2, 0) / hist.length);
-    if (sd <= 0 || mean === 0) continue;
-    const v = values[i];
-    const zz = (v - mean) / sd;
-    const pct = ((v - mean) / Math.abs(mean)) * 100;
-    if (Math.abs(zz) > z && Math.abs(pct) > minPct) fired++;
-  }
-  return fired;
-}
 
 export function BacktestTuner({ metrics }: { metrics: Metric[] }) {
   const [z, setZ] = useState(3);
   const [minPct, setMinPct] = useState(8);
   const [window, setWindow] = useState(400);
 
-  const rows = metrics.map((m) => ({ ...m, fires: fireCount(m.values, z, minPct, window) }));
+  const rows = metrics.map((m) => ({
+    ...m,
+    fires: backtestFires(m.values, { z, minPct, window, minSamples: MIN_SAMPLES }).length,
+    // For metrics that produced false positives, a z that would have silenced
+    // every past fire — the "learn from your dismissals" suggestion.
+    suggested: m.fpCount > 0 && m.values.length > MIN_SAMPLES ? suggestZ(m.values, { minPct, window, minSamples: MIN_SAMPLES }) : null,
+  }));
   const totalFires = rows.reduce((a, r) => a + r.fires, 0);
+  const withFps = rows.filter((r) => r.suggested != null);
 
   return (
     <div>
@@ -46,23 +36,42 @@ export function BacktestTuner({ metrics }: { metrics: Metric[] }) {
         </div>
       </div>
 
+      {withFps.length > 0 ? (
+        <div className="suggest-banner">
+          <b>Learn from dismissals:</b> {withFps.length} metric{withFps.length > 1 ? 's have' : ' has'} produced false positives.
+          Applying the suggested z below would silence those past fires.
+        </div>
+      ) : null}
+
       <div className="cov-wrap" style={{ marginTop: 14 }}>
         <table className="cov-table">
-          <thead><tr><th align="left">Metric</th><th>Samples</th><th>Would fire</th><th>Saved override</th><th></th></tr></thead>
+          <thead><tr><th align="left">Metric</th><th>Samples</th><th>Would fire</th><th>FPs</th><th>Saved override</th><th>Suggestion</th><th></th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.metricKey}>
                 <td align="left" className="cov-risk">{r.metricKey}</td>
                 <td>{r.values.length}</td>
                 <td className={r.fires > 10 ? 'cov-blocked' : r.fires > 0 ? '' : 'cov-yes'} style={{ verticalAlign: 'middle' }}>{r.values.length <= MIN_SAMPLES ? 'low data' : r.fires}</td>
+                <td className={r.fpCount > 0 ? 'cov-blocked' : ''} style={{ verticalAlign: 'middle' }}>{r.fpCount || '—'}</td>
                 <td style={{ verticalAlign: 'middle' }}>{r.savedZ != null || r.savedMinPct != null ? `z=${r.savedZ ?? 'def'} · ${r.savedMinPct ?? 'def'}%` : <span className="kpi-sub">defaults</span>}</td>
+                <td align="left" style={{ verticalAlign: 'middle' }}>
+                  {r.suggested != null ? (
+                    <form action={setBaselineThreshold}>
+                      <input type="hidden" name="metricKey" value={r.metricKey} />
+                      <input type="hidden" name="z" value={r.suggested} />
+                      <input type="hidden" name="minPct" value={minPct} />
+                      <input type="hidden" name="enabled" value="true" />
+                      <button className="act act-primary" type="submit" title={`Raise z to ${r.suggested} to suppress the ${r.fpCount} false positive(s)`}>Apply z={r.suggested}</button>
+                    </form>
+                  ) : <span className="kpi-sub">—</span>}
+                </td>
                 <td align="left">
                   <form action={setBaselineThreshold}>
                     <input type="hidden" name="metricKey" value={r.metricKey} />
                     <input type="hidden" name="z" value={z} />
                     <input type="hidden" name="minPct" value={minPct} />
                     <input type="hidden" name="enabled" value="true" />
-                    <button className="act" type="submit" title={`Save z=${z.toFixed(1)}, min=${minPct.toFixed(1)}% for this metric`}>Apply</button>
+                    <button className="act" type="submit" title={`Save z=${z.toFixed(1)}, min=${minPct.toFixed(1)}% for this metric`}>Apply slider</button>
                   </form>
                 </td>
               </tr>

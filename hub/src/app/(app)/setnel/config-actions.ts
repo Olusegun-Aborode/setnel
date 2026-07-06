@@ -5,11 +5,9 @@ import { revalidatePath } from 'next/cache';
 import { sql } from '@/lib/db';
 import { isAuthed } from '@/lib/session';
 import { audit } from '@/lib/admin';
+import { currentActor, upsertUser, setUserRole, deleteUser } from '@/lib/users';
 
-async function actor(): Promise<string> {
-  const n = (await cookies()).get('setnel_actor')?.value?.trim();
-  return n && n.length ? n.slice(0, 40) : 'team';
-}
+const actor = currentActor;
 async function guard() {
   if (!(await isAuthed())) throw new Error('unauthorized');
 }
@@ -98,19 +96,72 @@ export async function saveChannel(formData: FormData) {
   revalidatePath('/setnel/escalation');
 }
 
-export async function setMemberRole(formData: FormData) {
+// ── Users & access (real identity) ──
+export async function addUser(formData: FormData) {
   await guard();
-  const target = String(formData.get('actor') ?? '').slice(0, 40);
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const name = String(formData.get('name') ?? '').trim();
+  const role = String(formData.get('role') ?? 'Responder');
+  if (!email.includes('@') || !name) return;
+  const who = await actor();
+  const u = await upsertUser({ email, name, role });
+  await audit(who, 'user.add', u.id, `${name} (${role})`);
+  revalidatePath('/setnel/settings');
+}
+
+export async function updateUserRole(formData: FormData) {
+  await guard();
+  const id = String(formData.get('id'));
   const role = String(formData.get('role') ?? '');
-  if (!target || !['Owner', 'Responder', 'System', 'Viewer'].includes(role)) return;
+  const who = await actor();
+  await setUserRole(id, role);
+  await audit(who, 'user.role', id, role);
+  revalidatePath('/setnel/settings');
+}
+
+export async function removeUser(formData: FormData) {
+  await guard();
+  const id = String(formData.get('id'));
+  const who = await actor();
+  await deleteUser(id);
+  await audit(who, 'user.remove', id);
+  revalidatePath('/setnel/settings');
+}
+
+// ── On-call rotation ──
+export async function saveRotation(formData: FormData) {
+  await guard();
+  const raw = String(formData.get('roster') ?? '');
+  // One "Name <contact>" per line; contact optional.
+  const entries = raw.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 30).map((line) => {
+    const m = line.match(/^(.*?)(?:\s*<([^>]*)>)?\s*$/);
+    return { member: (m?.[1] ?? line).trim().slice(0, 80), contact: (m?.[2] ?? '').trim().slice(0, 120) || null };
+  }).filter((e) => e.member);
+  const who = await actor();
+  await sql`DELETE FROM oncall_rotation`;
+  for (let i = 0; i < entries.length; i++) {
+    await sql`INSERT INTO oncall_rotation (position, member, contact, updated_by) VALUES (${i}, ${entries[i].member}, ${entries[i].contact}, ${who})`;
+  }
+  await audit(who, 'oncall.rotation', undefined, `${entries.length} in rotation`);
+  revalidatePath('/setnel/escalation');
+}
+
+// ── SLO targets ──
+export async function saveSlo(formData: FormData) {
+  await guard();
+  const mtta = Math.max(1, Math.min(1440, Number(formData.get('mtta') ?? 15)));
+  const mttr = Math.max(1, Math.min(10080, Number(formData.get('mttr') ?? 120)));
+  const ackRate = Math.max(0, Math.min(100, Number(formData.get('ackRate') ?? 90)));
+  const fpRate = Math.max(0, Math.min(100, Number(formData.get('fpRate') ?? 20)));
   const who = await actor();
   await sql`
-    INSERT INTO member_roles (actor, role, updated_by)
-    VALUES (${target}, ${role}, ${who})
-    ON CONFLICT (actor) DO UPDATE SET role = ${role}, updated_by = ${who}, updated_at = now()
+    UPDATE slo_config SET mtta_target_min = ${mtta}, mttr_target_min = ${mttr},
+      ack_rate_target = ${ackRate}, fp_rate_target = ${fpRate}, updated_by = ${who}, updated_at = now()
+    WHERE id = 1
   `;
-  await audit(who, 'member.role', target, role);
+  await audit(who, 'slo.save', undefined, `mtta=${mtta} mttr=${mttr} ack=${ackRate} fp=${fpRate}`);
   revalidatePath('/setnel/settings');
+  revalidatePath('/setnel/reports');
 }
 
 export async function proposeDetector(formData: FormData) {

@@ -12,6 +12,7 @@
 import { sql, type DashboardRow, type Severity } from './db';
 import { ingestBatch } from './ingest';
 import { getBaselineConfigMap } from './admin';
+import { evaluateLatest } from './detect';
 import type { IncomingEvent } from './types';
 
 const MIN_SAMPLES = Number(process.env.SETNEL_BASELINE_MIN_SAMPLES || '20');
@@ -74,21 +75,22 @@ export async function runBaselines(): Promise<{ checked: number; anomalies: numb
       continue;
     }
 
-    const latest = rows[0].value;
-    const baseline = rows.slice(1).map((r) => r.value); // exclude the latest
-    const mean = baseline.reduce((a, b) => a + b, 0) / baseline.length;
-    const variance = baseline.reduce((a, b) => a + (b - mean) ** 2, 0) / baseline.length;
-    const stddev = Math.sqrt(variance);
-    if (stddev <= 0 || mean === 0) {
+    // Oldest → newest; evaluateLatest excludes the latest point from its baseline.
+    const values = rows.map((r) => r.value).reverse();
+    const evalResult = evaluateLatest(values, { z: z_threshold, minPct: min_pct, window: WINDOW, minSamples: MIN_SAMPLES });
+    if (!evalResult) {
+      results.push({ metricKey: m.metric_key, status: 'insufficient' });
+      continue;
+    }
+    const { z, pct: pctFromMean, mean, latest } = evalResult;
+    if (evalResult.stddev <= 0 || mean === 0) {
       results.push({ metricKey: m.metric_key, status: 'ok' });
       continue;
     }
 
-    const z = (latest - mean) / stddev;
-    const pctFromMean = ((latest - mean) / Math.abs(mean)) * 100;
-
-    if (Math.abs(z) > z_threshold && Math.abs(pctFromMean) > min_pct) {
+    if (evalResult.fired) {
       const meta = metricMeta(m.metric_key);
+      const stddev = evalResult.stddev;
       const severity: Severity = Math.abs(z) >= 4 ? 'critical' : 'warning';
       const dir = z > 0 ? 'above' : 'below';
       const exposureUsd = meta.exposure(latest);

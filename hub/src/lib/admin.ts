@@ -83,6 +83,16 @@ export async function getBaselineMetrics(): Promise<BaselineMetric[]> {
   return rows.map((r) => ({ metricKey: r.metric_key, samples: r.samples, z: r.z, minPct: r.min_pct, enabled: r.enabled ?? true }));
 }
 
+// ── False positives per baseline metric (drives the tuning suggestions) ──
+export async function getBaselineFpCounts(dashboardId: string): Promise<Map<string, number>> {
+  const rows = (await sql`
+    SELECT fingerprint, count(*)::int AS n FROM incidents
+    WHERE dashboard_id = ${dashboardId} AND false_positive = true AND fingerprint LIKE 'baseline:%'
+    GROUP BY fingerprint
+  `) as { fingerprint: string; n: number }[];
+  return new Map(rows.map((r) => [r.fingerprint.replace(/^baseline:/, ''), r.n]));
+}
+
 // ── Recently escalated incidents, for the Escalation page ──
 export type EscalatedIncident = { id: string; severity: string; message: string; escalated_at: string; dashboard_name: string };
 export async function getRecentEscalations(limit = 20): Promise<EscalatedIncident[]> {
@@ -112,6 +122,67 @@ export function parseRecipients(raw: string | null): string[] {
   return raw.split(/[\s,;]+/).map((s) => s.trim()).filter((s) => s.includes('@'));
 }
 
+// ── On-call rotation ──
+export type RotationEntry = { position: number; member: string; contact: string | null };
+export async function getRotation(): Promise<RotationEntry[]> {
+  return (await sql`SELECT position, member, contact FROM oncall_rotation ORDER BY position`) as RotationEntry[];
+}
+// Whole weeks since the unix epoch — the rotation index. Deterministic handoff
+// every Monday-ish (epoch was a Thursday; exact anchor doesn't matter for a cycle).
+function isoWeekIndex(nowMs: number): number {
+  return Math.floor(nowMs / (7 * 24 * 60 * 60 * 1000));
+}
+export async function getCurrentOnCall(): Promise<{ name: string | null; contact: string | null; rotating: boolean }> {
+  const roster = await getRotation();
+  if (roster.length) {
+    const cur = roster[isoWeekIndex(Date.now()) % roster.length];
+    return { name: cur.member, contact: cur.contact, rotating: true };
+  }
+  const esc = await getEscalation();
+  return { name: esc.oncallName, contact: esc.oncallContact, rotating: false };
+}
+
+// ── SLO targets ──
+export type SloTargets = { mttaTargetMin: number; mttrTargetMin: number; ackRateTarget: number; fpRateTarget: number };
+export async function getSloTargets(): Promise<SloTargets> {
+  const r = (await sql`SELECT mtta_target_min, mttr_target_min, ack_rate_target, fp_rate_target FROM slo_config WHERE id = 1`) as
+    { mtta_target_min: number; mttr_target_min: number; ack_rate_target: number; fp_rate_target: number }[];
+  const x = r[0];
+  return {
+    mttaTargetMin: x?.mtta_target_min ?? 15, mttrTargetMin: x?.mttr_target_min ?? 120,
+    ackRateTarget: x?.ack_rate_target ?? 90, fpRateTarget: x?.fp_rate_target ?? 20,
+  };
+}
+
+// ── Cron heartbeats (self-monitoring) ──
+// Expected cadence per job (minutes); a job is "stale" past ~3x its interval.
+export const CRON_INTERVALS_MIN: Record<string, number> = {
+  ingest: 5, analyze: 30, crosscheck: 60, watchdog: 15, rwa: 15, resolve: 30,
+};
+export async function recordHeartbeat(job: string, detail?: string): Promise<void> {
+  try {
+    await sql`
+      INSERT INTO cron_heartbeats (job, last_run_at, last_detail, runs)
+      VALUES (${job}, now(), ${detail ?? null}, 1)
+      ON CONFLICT (job) DO UPDATE SET last_run_at = now(), last_detail = ${detail ?? null}, runs = cron_heartbeats.runs + 1
+    `;
+  } catch (e) {
+    console.error('[heartbeat] failed', e);
+  }
+}
+export type Heartbeat = { job: string; lastRunAt: string; lastDetail: string | null; runs: number; staleMin: number; expectedMin: number; stale: boolean };
+export async function getHeartbeats(): Promise<Heartbeat[]> {
+  const rows = (await sql`
+    SELECT job, last_run_at, last_detail, runs, EXTRACT(EPOCH FROM (now() - last_run_at)) / 60 AS stale_min
+    FROM cron_heartbeats ORDER BY job
+  `) as { job: string; last_run_at: string; last_detail: string | null; runs: string; stale_min: number }[];
+  return rows.map((r) => {
+    const expectedMin = CRON_INTERVALS_MIN[r.job] ?? 60;
+    const staleMin = Math.round(Number(r.stale_min));
+    return { job: r.job, lastRunAt: r.last_run_at, lastDetail: r.last_detail, runs: Number(r.runs), staleMin, expectedMin, stale: staleMin > expectedMin * 3 };
+  });
+}
+
 // ── Notification channel routing (per severity) ──
 export type ChannelConfig = { telegram: boolean; email: boolean };
 const DEFAULT_CHANNELS: ChannelConfig = { telegram: true, email: false };
@@ -128,13 +199,6 @@ export async function getChannels(): Promise<ChannelRow[]> {
   const order = ['warning', 'critical', 'emergency'];
   const map = await getChannelConfigMap();
   return order.map((s) => ({ severity: s, ...channelsFor(map, s) }));
-}
-
-// ── Member role labels (attribution only — see schema note) ──
-export const MEMBER_ROLES = ['Owner', 'Responder', 'System', 'Viewer'] as const;
-export async function getMemberRoleMap(): Promise<Map<string, string>> {
-  const rows = (await sql`SELECT actor, role FROM member_roles`) as { actor: string; role: string }[];
-  return new Map(rows.map((r) => [r.actor, r.role]));
 }
 
 // ── Detector proposals (from the Coverage map) ──
@@ -176,21 +240,12 @@ export async function getWeeklyReport(weeks = 12): Promise<WeekRow[]> {
   }));
 }
 
-// ── Settings: dashboards admin + members ──
+// ── Settings: dashboards admin ──
 export type DashboardAdmin = { id: string; name: string; protocolSlug: string; baseUrl: string; enabled: boolean };
 export async function getDashboardsAdmin(): Promise<DashboardAdmin[]> {
   const rows = (await sql`SELECT id, name, protocol_slug, base_url, enabled FROM dashboards ORDER BY enabled DESC, name`) as
     { id: string; name: string; protocol_slug: string; base_url: string; enabled: boolean }[];
   return rows.map((r) => ({ id: r.id, name: r.name, protocolSlug: r.protocol_slug, baseUrl: r.base_url, enabled: r.enabled }));
-}
-export type Member = { actor: string; actions: number; lastSeen: string | null; role: string };
-export async function getMembers(): Promise<Member[]> {
-  const roles = await getMemberRoleMap();
-  const rows = (await sql`
-    SELECT actor, count(*)::int AS actions, max(created_at) AS last_seen
-    FROM audit_log GROUP BY actor ORDER BY actions DESC LIMIT 50
-  `) as { actor: string; actions: number; last_seen: string | null }[];
-  return rows.map((r) => ({ actor: r.actor, actions: r.actions, lastSeen: r.last_seen, role: roles.get(r.actor) ?? 'Responder' }));
 }
 
 // ── Inbox / audit feed ──

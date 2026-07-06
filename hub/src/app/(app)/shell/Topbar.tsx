@@ -1,9 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { Search, Tv } from 'lucide-react';
+import { Search, Tv, UserCircle2 } from 'lucide-react';
 import { LiveRefresh } from '../setnel/live';
-import { setActor } from '../setnel/actions';
 
 const TITLES: { match: (p: string) => boolean; title: string; sub: string }[] = [
   { match: (p) => p.startsWith('/setnel/incidents'), title: 'Incidents', sub: 'Full triage — filter, acknowledge, mute, resolve' },
@@ -22,7 +21,7 @@ const TITLES: { match: (p: string) => boolean; title: string; sub: string }[] = 
   { match: () => true, title: 'Console', sub: 'Live risk overview across all monitored dashboards' },
 ];
 
-export function Topbar({ criticalActive, activeCount, actorName }: { criticalActive: number; activeCount: number; actorName: string }) {
+export function Topbar({ criticalActive, activeCount, userName }: { criticalActive: number; activeCount: number; userName: string | null }) {
   const path = usePathname();
   const t = TITLES.find((x) => x.match(path))!;
   const level = criticalActive > 0 ? 'crit' : activeCount > 0 ? 'warn' : 'ok';
@@ -43,10 +42,15 @@ export function Topbar({ criticalActive, activeCount, actorName }: { criticalAct
         </button>
         <a className="tb-icon" href="/wallboard" title="Wallboard"><Tv size={15} strokeWidth={1.6} /></a>
         <LiveRefresh intervalMs={30000} />
-        <form action={setActor} className="actor-form">
-          <input className="actor-input" name="name" defaultValue={actorName} placeholder="your name" maxLength={40} />
-          <button className="ghost-btn" type="submit">Set</button>
-        </form>
+        {userName ? (
+          <a className="tb-identity" href="/login/identify" title="Switch identity">
+            <UserCircle2 size={16} strokeWidth={1.6} /> {userName}
+          </a>
+        ) : (
+          <a className="tb-identity tb-identity-anon" href="/login/identify" title="Sign in to attribute your actions">
+            <UserCircle2 size={16} strokeWidth={1.6} /> Sign in
+          </a>
+        )}
       </div>
     </header>
   );

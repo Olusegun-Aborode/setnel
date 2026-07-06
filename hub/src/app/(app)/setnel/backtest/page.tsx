@@ -1,33 +1,16 @@
 import { redirect } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
 import { getMetricsOverview, type MetricSeries } from '@/lib/queries';
+import { backtestFires } from '@/lib/detect';
 
 export const dynamic = 'force-dynamic';
 
 const Z = 3, MIN_PCT = 8, MIN_SAMPLES = 20, WINDOW = 400;
 
-// Replay the live baseline rule over history: at each point, compute the rolling
-// baseline from PRIOR points and check if it would have fired. Validates whether
-// the current thresholds are well-tuned (too many fires = noisy).
-function backtest(points: { value: number }[]): number[] {
-  const fired: number[] = [];
-  for (let i = MIN_SAMPLES; i < points.length; i++) {
-    const hist = points.slice(Math.max(0, i - WINDOW), i).map((p) => p.value);
-    const mean = hist.reduce((a, b) => a + b, 0) / hist.length;
-    const sd = Math.sqrt(hist.reduce((a, b) => a + (b - mean) ** 2, 0) / hist.length);
-    if (sd <= 0 || mean === 0) continue;
-    const v = points[i].value;
-    const z = (v - mean) / sd;
-    const pct = ((v - mean) / Math.abs(mean)) * 100;
-    if (Math.abs(z) > Z && Math.abs(pct) > MIN_PCT) fired.push(i);
-  }
-  return fired;
-}
-
 export default async function BacktestPage() {
   if (!(await isAuthed())) redirect('/login');
   const metrics = await getMetricsOverview(200);
-  const results = metrics.map((m) => ({ m, fired: backtest(m.points) }));
+  const results = metrics.map((m) => ({ m, fired: backtestFires(m.points.map((p) => p.value), { z: Z, minPct: MIN_PCT, window: WINDOW, minSamples: MIN_SAMPLES }) }));
 
   return (
     <>

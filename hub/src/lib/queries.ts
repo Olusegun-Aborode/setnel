@@ -96,10 +96,21 @@ export type MetricSeries = {
 };
 
 export async function getMetricsOverview(limitPerMetric = 200): Promise<MetricSeries[]> {
+  return metricsFor(null, limitPerMetric);
+}
+
+// Filter to a single dashboard in SQL rather than pulling every dashboard's
+// series and filtering in JS (the drill-down / detector-detail case).
+export async function getMetricsForDashboard(dashboardId: string, limitPerMetric = 400): Promise<MetricSeries[]> {
+  return metricsFor(dashboardId, limitPerMetric);
+}
+
+async function metricsFor(dashboardId: string | null, limitPerMetric: number): Promise<MetricSeries[]> {
   const metrics = (await sql`
     SELECT DISTINCT m.dashboard_id, m.metric_key, d.name AS dashboard_name
     FROM metric_samples m JOIN dashboards d ON d.id = m.dashboard_id
     WHERE m.source = 'dashboard' AND d.enabled = true
+      AND (${dashboardId}::text IS NULL OR m.dashboard_id = ${dashboardId})
     ORDER BY m.dashboard_id, m.metric_key
   `) as { dashboard_id: string; metric_key: string; dashboard_name: string }[];
 

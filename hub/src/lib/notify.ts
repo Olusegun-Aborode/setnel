@@ -97,6 +97,18 @@ async function sendEmailOnce(subject: string, text: string, recipients: string[]
   }
 }
 
+/** Is email delivery configured? (Resend key + from address.) */
+export function emailConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY && process.env.SETNEL_EMAIL_FROM);
+}
+
+/** Generic one-shot email (login links, digests). Returns success. */
+export async function sendMail(subject: string, text: string, recipients: string[]): Promise<boolean> {
+  const r = await sendEmailOnce(subject, text, recipients);
+  if (!r.ok) console.warn('[mail] send skipped/failed:', r.error);
+  return r.ok;
+}
+
 /** Send an alert email with retry + dead-letter, mirroring notifyTelegram. */
 export async function notifyEmail(args: {
   dashboardName: string;

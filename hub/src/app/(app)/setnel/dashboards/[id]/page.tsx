@@ -1,33 +1,21 @@
 import { redirect, notFound } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
-import { getHealthMatrix, getIncidents, getMetricsOverview, type MetricSeries } from '@/lib/queries';
+import { getHealthMatrix, getIncidents, getMetricsForDashboard, type MetricSeries } from '@/lib/queries';
 import { getDashboardsAdmin, getDetectorRegistry } from '@/lib/admin';
+import { fmtMetric } from '@/lib/format';
 import { IncidentCard, timeAgo } from '../../incident-card';
 
 export const dynamic = 'force-dynamic';
-
-function fmtVal(key: string, v: number): string {
-  if (key.endsWith('_hhi')) return v.toFixed(0);
-  if (key.includes('utilization') || key.endsWith('_pct')) return `${v.toFixed(1)}%`;
-  if (key.startsWith('sui.') && (key.endsWith('.tvl') || key === 'sui.tvl_total')) return `$${v.toFixed(1)}M`;
-  if (key.startsWith('aave.')) {
-    const a = Math.abs(v);
-    if (a >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
-    if (a >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
-    return `$${v.toFixed(0)}`;
-  }
-  return String(Math.round(v * 100) / 100);
-}
 
 export default async function DashboardDrill({ params }: { params: Promise<{ id: string }> }) {
   if (!(await isAuthed())) redirect('/login');
   const { id } = await params;
 
-  const [health, dashboards, incidents, metrics, detectors] = await Promise.all([
+  const [health, dashboards, incidents, myMetrics, detectors] = await Promise.all([
     getHealthMatrix(),
     getDashboardsAdmin(),
     getIncidents({ dashboardId: id, status: 'all' }),
-    getMetricsOverview(200),
+    getMetricsForDashboard(id),
     getDetectorRegistry(),
   ]);
 
@@ -36,7 +24,6 @@ export default async function DashboardDrill({ params }: { params: Promise<{ id:
   if (!dash) notFound();
 
   const active = incidents.filter((i) => i.status === 'active');
-  const myMetrics = metrics.filter((m) => m.dashboardId === id);
   const myDetectors = detectors.filter((d) => d.dashboardId === id);
 
   return (
@@ -75,7 +62,7 @@ export default async function DashboardDrill({ params }: { params: Promise<{ id:
           <div className="metric-grid">
             {myMetrics.map((m) => (
               <div className="metric-card" key={m.metricKey}>
-                <div className="metric-head"><span className="metric-key">{m.metricKey}</span><span className="metric-val">{fmtVal(m.metricKey, m.latest)}</span></div>
+                <div className="metric-head"><span className="metric-key">{m.metricKey}</span><span className="metric-val">{fmtMetric(m.metricKey, m.latest)}</span></div>
                 <Band m={m} />
               </div>
             ))}

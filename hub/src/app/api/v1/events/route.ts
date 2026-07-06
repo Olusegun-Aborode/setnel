@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql, type DashboardRow } from '@/lib/db';
 import { dashboardSecret, verifySignature } from '@/lib/auth-hmac';
 import { ingestBatch, recordCheckin, recordSamples } from '@/lib/ingest';
+import { recordHeartbeat } from '@/lib/admin';
 import { EventBatchSchema } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
 
   // Heartbeat on every authenticated check-in — even with zero alerts.
   await recordCheckin(dashboardId);
+  await recordHeartbeat('ingest', dashboardId); // self-monitoring: ingest pipeline alive
 
   // Persist metric samples (time-series) regardless of whether alerts fired.
   const sampled = await recordSamples(dashboardId, samples ?? []);

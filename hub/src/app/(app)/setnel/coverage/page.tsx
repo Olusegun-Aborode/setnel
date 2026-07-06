@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
 import { RISK_TYPES, COVERAGE_DASHBOARDS, COVERAGE, BLOCKED_REASON, type Cover } from '@/lib/coverage';
-import { getProposals } from '@/lib/admin';
+import { getProposals, getDetectorRegistry, getDashboardsAdmin } from '@/lib/admin';
+import { fmtTime } from '@/lib/format';
 import { proposeDetector, resolveProposal } from '../config-actions';
 
 export const dynamic = 'force-dynamic';
@@ -13,19 +14,26 @@ const MARK: Record<Cover, { ch: string; cls: string }> = {
   na: { ch: '–', cls: 'cov-na' },
 };
 
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
 export default async function CoveragePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   if (!(await isAuthed())) redirect('/login');
   const sp = await searchParams;
-  const proposals = (await getProposals()).filter((p) => p.status === 'open');
+  const [proposalsAll, registry, dashboards] = await Promise.all([getProposals(), getDetectorRegistry(), getDashboardsAdmin()]);
+  const proposals = proposalsAll.filter((p) => p.status === 'open');
+
+  // Reality check: detector counts per dashboard straight from the registry, so
+  // the curated matrix above can't quietly claim coverage that doesn't exist.
+  const liveByDash = new Map<string, { total: number; enabled: number }>();
+  for (const d of registry) {
+    const cur = liveByDash.get(d.dashboardId) ?? { total: 0, enabled: 0 };
+    cur.total += 1;
+    if (d.enabled) cur.enabled += 1;
+    liveByDash.set(d.dashboardId, cur);
+  }
 
   return (
     <>
       <section className="panel">
-        <div className="panel-head"><h2>Detector coverage</h2><span className="panel-note">what each dashboard is — and isn’t — watched for · click a gap to propose a detector</span></div>
+        <div className="panel-head"><h2>Detector coverage (intended)</h2><span className="panel-note">what each dashboard is — and isn’t — meant to watch · click a gap to propose a detector</span></div>
         <div className="cov-wrap">
           <table className="cov-table">
             <thead>
@@ -63,6 +71,33 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
           <span className="legend-item"><i className="cov-key cov-planned">◷</i> planned (not wired)</span>
           <span className="legend-item"><i className="cov-key cov-na">–</i> n/a</span>
         </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head"><h2>Live detectors (actual)</h2><span className="panel-note">from the registry — what really exists, so the matrix can’t lie</span></div>
+        <div className="cov-wrap">
+          <table className="cov-table">
+            <thead><tr><th align="left">Dashboard</th><th>Detectors</th><th>Enabled</th><th>Reality</th></tr></thead>
+            <tbody>
+              {dashboards.filter((d) => d.enabled).map((d) => {
+                const live = liveByDash.get(d.id) ?? { total: 0, enabled: 0 };
+                return (
+                  <tr key={d.id}>
+                    <td align="left" className="cov-risk"><a className="card-detail" href={`/setnel/dashboards/${d.id}`}>{d.name}</a></td>
+                    <td>{live.total}</td>
+                    <td>{live.enabled}</td>
+                    <td className={live.total === 0 ? 'cov-blocked' : live.enabled === 0 ? 'cov-planned' : 'cov-yes'}>
+                      {live.total === 0 ? '✕ no detectors' : live.enabled === 0 ? '◷ all disabled' : '✓ active'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="panel-note" style={{ marginTop: 10 }}>
+          An onboarded dashboard with <b>no detectors</b> is monitored for liveness only — the intended-coverage matrix above may still show ticks that aren’t backed by a running rule.
+        </p>
       </section>
 
       <section className="panel" id="propose">

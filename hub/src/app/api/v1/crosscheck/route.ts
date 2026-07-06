@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { runCrossChecks } from '@/lib/crosscheck';
+import { recordHeartbeat } from '@/lib/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,5 +18,6 @@ export async function GET(req: Request) {
     }
   }
   const out = await runCrossChecks();
+  await recordHeartbeat('crosscheck');
   return NextResponse.json({ ok: true, ...out });
 }

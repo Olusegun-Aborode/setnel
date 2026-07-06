@@ -1,14 +1,9 @@
-import { sql, SEVERITY_RANK, type DashboardRow, type IncidentRow, type Severity } from './db';
+import { sql, type DashboardRow, type IncidentRow, type Severity } from './db';
 import { isTechnical, deliverAlert } from './notify';
 import { getDetectorConfigMap, getChannelConfigMap, channelsFor, getEscalation, parseRecipients } from './admin';
+import { renotifyWindowMs, isSeverityEscalation, shouldRenotify } from './incident-logic';
+import { cached } from './config-cache';
 import type { IncomingEvent } from './types';
-
-// Re-notify cadence for an UNACKNOWLEDGED incident that keeps firing. Critical/
-// emergency nag hourly (escalation pressure until someone acks); lower severities
-// every 6h. Once acknowledged, we don't re-notify unless the severity escalates.
-const RENOTIFY_ACKED_MS = Infinity; // acked → silent (until escalation)
-const RENOTIFY_URGENT_MS = 60 * 60 * 1000; // 1h for critical/emergency
-const RENOTIFY_NORMAL_MS = 6 * 60 * 60 * 1000; // 6h otherwise
 
 type IngestResult = { stored: number; incidentsOpened: number; notified: number };
 
@@ -36,10 +31,10 @@ export async function ingestBatch(
   );
   // Per-detector config: disabled detectors are dropped entirely; severity
   // overrides replace the detector's own severity.
-  const detectorConfig = await getDetectorConfigMap();
-  // Per-severity channel routing + email recipients (resolved once per batch).
-  const channelMap = await getChannelConfigMap();
-  const emailRecipients = parseRecipients((await getEscalation()).emailRecipients);
+  const detectorConfig = await cached('detectorConfig', getDetectorConfigMap);
+  // Per-severity channel routing + email recipients (cached; resolved per batch).
+  const channelMap = await cached('channelMap', getChannelConfigMap);
+  const emailRecipients = parseRecipients((await cached('escalation', getEscalation)).emailRecipients);
 
   for (const ev of events) {
     const cfg = detectorConfig.get(`${dashboard.id}:${ev.detectorId}`);
@@ -78,20 +73,11 @@ export async function ingestBatch(
     } else {
       const inc = existing[0];
       incidentId = inc.id;
-      const escalated = SEVERITY_RANK[severity] > SEVERITY_RANK[inc.severity];
-
-      // Muted → never notify until the mute expires (regardless of escalation).
-      const muted = inc.muted_until && new Date(inc.muted_until).getTime() > Date.now();
-      // Acknowledged → someone's on it; only ping again if severity escalates.
+      const escalated = isSeverityEscalation(severity, inc.severity);
+      const muted = Boolean(inc.muted_until && new Date(inc.muted_until).getTime() > Date.now());
       const acked = Boolean(inc.acknowledged_at);
-      const window = acked
-        ? RENOTIFY_ACKED_MS
-        : SEVERITY_RANK[severity] >= SEVERITY_RANK.critical
-          ? RENOTIFY_URGENT_MS
-          : RENOTIFY_NORMAL_MS;
-      const stale =
-        !inc.notified_at || Date.now() - new Date(inc.notified_at).getTime() > window;
-      shouldNotify = !muted && (escalated || stale);
+      const windowMs = renotifyWindowMs(acked, severity);
+      shouldNotify = shouldRenotify({ muted, escalated, notifiedAt: inc.notified_at, nowMs: Date.now(), windowMs });
 
       const newSeverity = escalated ? severity : inc.severity;
       await sql`

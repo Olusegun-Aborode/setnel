@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
 import { getIncidents, getSummary, type Filters } from '@/lib/queries';
 import { IncidentCard } from '../incident-card';
+import { IncidentTriage, type TriageIncident } from './triage';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,11 @@ export default async function IncidentsPage({
   const [incidents, summary] = await Promise.all([getIncidents(filters), getSummary()]);
   const active = incidents.filter((i) => i.status === 'active');
   const resolved = incidents.filter((i) => i.status === 'resolved');
+  const triage: TriageIncident[] = active.map((i) => ({
+    id: String(i.id), dashboardName: i.dashboard_name, severity: i.severity, message: i.message,
+    detectorId: i.detector_id, acked: Boolean(i.acknowledged_at),
+    muted: Boolean(i.muted_until && new Date(i.muted_until).getTime() > Date.now()), exposureUsd: i.exposure_usd,
+  }));
 
   return (
     <section className="panel">
@@ -43,13 +49,7 @@ export default async function IncidentsPage({
         ))}
       </nav>
 
-      <ul className="feed">
-        {active.length === 0 ? (
-          <li className="empty">No active incidents. 🟢</li>
-        ) : (
-          active.map((i) => <IncidentCard key={i.id} i={i} />)
-        )}
-      </ul>
+      <IncidentTriage incidents={triage} />
 
       {resolved.length > 0 ? (
         <details className="resolved-disclosure">

@@ -46,6 +46,39 @@ export async function createSession(): Promise<void> {
 export async function destroySession(): Promise<void> {
   const jar = await cookies();
   jar.delete(COOKIE);
+  jar.delete(UID_COOKIE);
+}
+
+// ── Per-user identity session (layered on top of the team gate) ──
+// Cookie value is `<userId>.<hmac(userId)>`; you can't forge being another user
+// without the server secret, so audit attribution is verifiable.
+const UID_COOKIE = 'setnel_uid';
+
+export async function setUserSession(userId: string): Promise<void> {
+  const jar = await cookies();
+  jar.set(UID_COOKIE, `${userId}.${sign(userId)}`, {
+    httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: Math.floor(MAX_AGE_MS / 1000),
+  });
+}
+
+export async function getSessionUserId(): Promise<string | null> {
+  const jar = await cookies();
+  const raw = jar.get(UID_COOKIE)?.value;
+  if (!raw) return null;
+  const idx = raw.lastIndexOf('.');
+  if (idx <= 0) return null;
+  const userId = raw.slice(0, idx);
+  const mac = raw.slice(idx + 1);
+  const a = Buffer.from(sign(userId), 'hex');
+  let b: Buffer;
+  try { b = Buffer.from(mac, 'hex'); } catch { return null; }
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  return userId;
+}
+
+export async function clearUserSession(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(UID_COOKIE);
 }
 
 export async function isAuthed(): Promise<boolean> {

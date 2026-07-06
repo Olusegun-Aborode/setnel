@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
 import { getDetectorRegistry, getBaselineMetrics, type DetectorRow } from '@/lib/admin';
-import { setDetectorEnabled, setDetectorSeverity, setBaselineThreshold } from '../config-actions';
+import { setDetectorSeverity, setBaselineThreshold } from '../config-actions';
+import { DetectorToggle } from './detector-toggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,14 +82,7 @@ export default async function DetectorsPage() {
                         </form>
                       </td>
                       <td align="left">
-                        <form action={setDetectorEnabled}>
-                          <input type="hidden" name="dashboardId" value={d.dashboardId} />
-                          <input type="hidden" name="detectorId" value={d.detectorId} />
-                          <input type="hidden" name="enabled" value={d.enabled ? 'false' : 'true'} />
-                          <button className={`act ${d.enabled ? '' : 'act-primary'}`} type="submit">
-                            {d.enabled ? 'Disable' : 'Enable'}
-                          </button>
-                        </form>
+                        <DetectorToggle dashboardId={d.dashboardId} detectorId={d.detectorId} enabled={d.enabled} />
                       </td>
                     </tr>
                   );

@@ -1,29 +1,17 @@
 'use server';
 
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { sql } from '@/lib/db';
 import { isAuthed } from '@/lib/session';
 import { audit } from '@/lib/admin';
+import { currentActor } from '@/lib/users';
 
-const ACTOR_COOKIE = 'setnel_actor';
-
-async function actor(): Promise<string> {
-  const jar = await cookies();
-  const name = jar.get(ACTOR_COOKIE)?.value?.trim();
-  return name && name.length ? name.slice(0, 40) : 'team';
-}
+// Attribution comes from the verified user session (HMAC-signed), not a
+// forgeable free-text name. Unverified sessions attribute to 'team'.
+const actor = currentActor;
 
 async function guard() {
   if (!(await isAuthed())) throw new Error('unauthorized');
-}
-
-export async function setActor(formData: FormData) {
-  await guard();
-  const name = String(formData.get('name') ?? '').trim().slice(0, 40);
-  const jar = await cookies();
-  if (name) jar.set(ACTOR_COOKIE, name, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 31536000 });
-  revalidatePath('/setnel');
 }
 
 export async function acknowledgeIncident(formData: FormData) {
@@ -41,12 +29,61 @@ export async function muteIncident(formData: FormData) {
   await guard();
   const id = String(formData.get('id'));
   const minutes = Math.max(5, Math.min(10080, Number(formData.get('minutes') ?? 60)));
+  const reason = String(formData.get('reason') ?? '').trim().slice(0, 200);
   const who = await actor();
   await sql`UPDATE incidents SET muted_until = now() + (${minutes} || ' minutes')::interval WHERE id = ${id}`;
-  await sql`INSERT INTO incident_notes (incident_id, author, body) VALUES (${id}, ${who}, ${'Muted for ' + minutes + ' min'})`;
-  await audit(who, 'incident.mute', id, minutes + 'm');
+  const note = `Muted ${minutes}m${reason ? `: ${reason}` : ''}`;
+  await sql`INSERT INTO incident_notes (incident_id, author, body) VALUES (${id}, ${who}, ${note})`;
+  await audit(who, 'incident.mute', id, `${minutes}m${reason ? ` · ${reason}` : ''}`);
   revalidatePath('/setnel');
   revalidatePath(`/setnel/incident/${id}`);
+}
+
+// ── Bulk triage (from the Incidents keyboard/selection UI) ──
+function idsFrom(formData: FormData): string[] {
+  return String(formData.get('ids') ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 200);
+}
+
+export async function bulkAck(formData: FormData) {
+  await guard();
+  const who = await actor();
+  const ids = idsFrom(formData);
+  for (const id of ids) {
+    await sql`UPDATE incidents SET acknowledged_at = now(), acknowledged_by = ${who} WHERE id = ${id} AND acknowledged_at IS NULL`;
+    await sql`INSERT INTO incident_notes (incident_id, author, body) VALUES (${id}, ${who}, 'Acknowledged (bulk)')`;
+  }
+  await audit(who, 'incident.bulk_ack', ids.join(','), `${ids.length} incidents`);
+  revalidatePath('/setnel/incidents');
+  revalidatePath('/setnel');
+}
+
+export async function bulkMute(formData: FormData) {
+  await guard();
+  const who = await actor();
+  const ids = idsFrom(formData);
+  const minutes = Math.max(5, Math.min(10080, Number(formData.get('minutes') ?? 60)));
+  const reason = String(formData.get('reason') ?? '').trim().slice(0, 200);
+  const note = `Muted ${minutes}m (bulk)${reason ? `: ${reason}` : ''}`;
+  for (const id of ids) {
+    await sql`UPDATE incidents SET muted_until = now() + (${minutes} || ' minutes')::interval WHERE id = ${id}`;
+    await sql`INSERT INTO incident_notes (incident_id, author, body) VALUES (${id}, ${who}, ${note})`;
+  }
+  await audit(who, 'incident.bulk_mute', ids.join(','), `${ids.length} · ${minutes}m${reason ? ` · ${reason}` : ''}`);
+  revalidatePath('/setnel/incidents');
+  revalidatePath('/setnel');
+}
+
+export async function bulkResolve(formData: FormData) {
+  await guard();
+  const who = await actor();
+  const ids = idsFrom(formData);
+  for (const id of ids) {
+    await sql`UPDATE incidents SET status = 'resolved', resolved_at = now(), resolved_by = ${who} WHERE id = ${id}`;
+    await sql`INSERT INTO incident_notes (incident_id, author, body) VALUES (${id}, ${who}, 'Resolved (bulk)')`;
+  }
+  await audit(who, 'incident.bulk_resolve', ids.join(','), `${ids.length} incidents`);
+  revalidatePath('/setnel/incidents');
+  revalidatePath('/setnel');
 }
 
 export async function markFalsePositive(formData: FormData) {

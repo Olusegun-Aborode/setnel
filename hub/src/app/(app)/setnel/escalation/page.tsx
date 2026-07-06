@@ -1,29 +1,53 @@
 import { redirect } from 'next/navigation';
 import { isAuthed } from '@/lib/session';
-import { getEscalation, getRecentEscalations, getChannels } from '@/lib/admin';
-import { saveEscalation, saveChannel } from '../config-actions';
+import { getEscalation, getRecentEscalations, getChannels, getRotation, getCurrentOnCall } from '@/lib/admin';
+import { fmtTime } from '@/lib/format';
+import { saveEscalation, saveChannel, saveRotation } from '../config-actions';
 
 export const dynamic = 'force-dynamic';
 
 const SEV: Record<string, string> = { info: 'sev-info', warning: 'sev-warning', critical: 'sev-critical', emergency: 'sev-emergency' };
 
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
 export default async function EscalationPage() {
   if (!(await isAuthed())) redirect('/login');
-  const [esc, recent, channels] = await Promise.all([getEscalation(), getRecentEscalations(), getChannels()]);
+  const [esc, recent, channels, rotation, onCall] = await Promise.all([
+    getEscalation(), getRecentEscalations(), getChannels(), getRotation(), getCurrentOnCall(),
+  ]);
   const telegramOk = Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
   const emailOk = Boolean(process.env.RESEND_API_KEY && process.env.SETNEL_EMAIL_FROM);
+  const rosterText = rotation.map((r) => (r.contact ? `${r.member} <${r.contact}>` : r.member)).join('\n');
 
   return (
     <>
       <section className="panel">
-        <div className="panel-head"><h2>Escalation &amp; on-call</h2><span className="panel-note">who gets paged when nobody acks</span></div>
+        <div className="panel-head"><h2>On-call now</h2><span className="panel-note">{onCall.rotating ? 'from the weekly rotation' : 'static on-call (no rotation set)'}</span></div>
+        <div className="kpis" style={{ marginTop: 4 }}>
+          <div className={`kpi ${onCall.name ? 'kpi-good' : 'kpi-warn'}`}>
+            <div className="kpi-label">Current on-call</div>
+            <div className="kpi-value" style={{ fontSize: 20 }}>{onCall.name ?? 'nobody set'}</div>
+            <div className="kpi-sub">{onCall.contact ?? (onCall.name ? 'no contact' : 'set a rotation or static on-call below')}</div>
+          </div>
+          <div className="kpi"><div className="kpi-label">Rotation</div><div className="kpi-value">{rotation.length || '—'}</div><div className="kpi-sub">people · weekly handoff</div></div>
+          <div className="kpi"><div className="kpi-label">Delivery</div><div className="kpi-value" style={{ fontSize: 16 }}>Telegram{emailOk ? ' + email' : ''}</div><div className="kpi-sub">no phone/SMS paging (yet)</div></div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head"><h2>On-call rotation</h2><span className="panel-note">one per line: <code>Name &lt;contact&gt;</code> · rotates weekly</span></div>
+        <form action={saveRotation}>
+          <textarea className="login-input" name="roster" rows={Math.max(4, rotation.length + 1)} defaultValue={rosterText} placeholder={'Olusegun <@olusegun>\nAda <ada@datumlab.xyz>'} style={{ width: '100%', fontFamily: 'var(--mono)', fontSize: 13 }} />
+          <div className="actions"><button className="act act-primary" type="submit">Save rotation</button></div>
+        </form>
+        <p className="panel-note" style={{ marginTop: 8 }}>
+          Empty rotation → escalations fall back to the static on-call below. This rotates who is <i>named</i> in the page; delivery is still Telegram/email to the team channel, not a personal phone call.
+        </p>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head"><h2>Escalation policy</h2><span className="panel-note">who gets paged when nobody acks</span></div>
         <p className="panel-note" style={{ marginBottom: 14 }}>
           When a <b>critical</b> or <b>emergency</b> incident stays unacknowledged past the window below, Setnel re-pages
-          Telegram tagged <code>⏫ ESCALATION</code> with the on-call name. Acknowledging or muting an incident stops its escalation.
+          tagged <code>⏫ ESCALATION</code> with the current on-call. Acknowledging or muting an incident stops its escalation.
         </p>
         <form action={saveEscalation}>
           <div className="kpis" style={{ marginTop: 0 }}>
